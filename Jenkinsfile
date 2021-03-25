@@ -64,10 +64,10 @@ pipeline {
     }
     post {
         success {
-            discordSend description: "Build ${env.JOB_NAME} ${env.BUILD_NUMBER} on ${env.BRANCH} completed successfully", link: env.BUILD_URL, result: currentBuild.currentResult, title: env.JOB_NAME, webhookURL: env.DISCORD_WEBHOOK
+            discordSend description: "Build ${env.JOB_NAME} (#${env.BUILD_NUMBER}) on ${env.BRANCH_NAME} completed successfully", link: env.BUILD_URL, result: currentBuild.currentResult, title: "${env.JOB_NAME} on branch ${env.BRANCH_NAME}", webhookURL: env.DISCORD_WEBHOOK
         }
         failure {
-            discordSend description: "Build ${env.JOB_NAME} ${env.BUILD_NUMBER} on ${env.BRANCH} failed", link: env.BUILD_URL, result: currentBuild.currentResult, title: env.JOB_NAME, webhookURL: env.DISCORD_WEBHOOK
+            discordSend description: "Build ${env.JOB_NAME} (#${env.BUILD_NUMBER}) on ${env.BRANCH_NAME} failed", link: env.BUILD_URL, result: currentBuild.currentResult, title: "${env.JOB_NAME} on branch ${env.BRANCH_NAME}", webhookURL: env.DISCORD_WEBHOOK
         }
     }
 }
