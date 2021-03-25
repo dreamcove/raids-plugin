@@ -8,18 +8,13 @@ depend:
   - Multiverse-Core
   - Parties
 permissions:
-  raids.startraid:
+  raids.start:
     description: Allows starting a command
-    default: op
-  raids.cancelraid:
+    default: true
+  raids.cancel:
     description: Allows party members to cancel a raid before starting
     default: true
 commands:
-  startraid:
-    description: Start a raid
-    usage: /raids start <raid template>
-    permission: raids.startraid
-  cancelraid:
-    description: Cancel raid
-    usage: /raids cancel
-    permission: raids.cancelraid
+  raids:
+    description: Manage raids
+    usage: /raids <start|cancel>

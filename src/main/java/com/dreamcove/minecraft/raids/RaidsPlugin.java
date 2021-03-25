@@ -10,6 +10,8 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -109,7 +111,7 @@ public class RaidsPlugin extends JavaPlugin {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (label.equals("raids")) {
+        if (command.getName().equals("raids")) {
             if (args.length >= 1) {
                 Player player = null;
 
@@ -124,7 +126,7 @@ public class RaidsPlugin extends JavaPlugin {
                 }
 
                 if (player != null) {
-                    switch (label) {
+                    switch (args[0]) {
                         case "start":
                             if (args.length == 2) {
                                 MultiverseCore core = (MultiverseCore) getServer().getPluginManager().getPlugin("Multiverse-Core");
@@ -144,10 +146,10 @@ public class RaidsPlugin extends JavaPlugin {
                                     for (Iterator<MultiverseWorld> i = core.getMVWorldManager().getMVWorlds().iterator(); i.hasNext(); ) {
                                         MultiverseWorld w = i.next();
 
-                                        if (w.getName().equals("template_" + args[0])) {
+                                        if (w.getName().equals("template_" + args[1])) {
                                             sender.sendMessage("Creating raid dungeon");
 
-                                            String newWorld = "raid_" + args[0] + "_" + System.currentTimeMillis();
+                                            String newWorld = "raid_" + args[1] + "_" + System.currentTimeMillis();
 
                                             queuedParties.put(party.getId(), newWorld);
 
@@ -200,5 +202,51 @@ public class RaidsPlugin extends JavaPlugin {
         return false;
     }
 
+    @Nullable
+    @Override
+    public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, @NotNull String[] args) {
+        List<String> result = new ArrayList<String>();
+
+        if (command != null && command.getName().equals("raids")) {
+            if (args.length == 1) {
+                if (sender.hasPermission("raids.start")) {
+                    result.add("start");
+                }
+                if (sender.hasPermission("raids.cancel")) {
+                    result.add("cancel");
+                }
+            } else if (args.length == 2) {
+                if (args[0].equals("start") && sender.hasPermission("raids.start")) {
+                    MultiverseCore core = (MultiverseCore)getServer().getPluginManager().getPlugin("Multiverse-Core");
+
+                    result.addAll(core.getMVWorldManager()
+                            .getMVWorlds()
+                            .stream()
+                            .filter(w -> w.getName().startsWith("template_"))
+                            .map(w -> w.getName().substring(9))
+                            .collect(Collectors.toList()));
+                }
+            }
+        }
+
+        return result;
+    }
+
+    private List<String> getAvailableRaids() {
+        if (availableRaids == null) {
+            MultiverseCore core = (MultiverseCore)getServer().getPluginManager().getPlugin("Multiverse-Core");
+
+            availableRaids = Collections.synchronizedList(core.getMVWorldManager()
+                    .getMVWorlds()
+                    .stream()
+                    .filter(w -> w.getName().startsWith("template_"))
+                    .map(w -> w.getName().substring(9))
+                    .collect(Collectors.toList()));
+        }
+
+        return availableRaids;
+    }
+
+    private List<String> availableRaids = null;
     private Map<UUID, String> queuedParties = Collections.synchronizedMap(new HashMap<UUID, String>());
 }
