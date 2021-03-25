@@ -1,0 +1,25 @@
+main: com.dreamcove.minecraft.raids.RaidsPlugin
+name: PartyRaids
+version: 1.0.0
+author: vaporofnuance
+api-version: 1.16
+load: POSTWORLD
+depend:
+  - Multiverse-Core
+  - Parties
+permissions:
+  raids.startraid:
+    description: Allows starting a command
+    default: op
+  raids.cancelraid:
+    description: Allows party members to cancel a raid before starting
+    default: true
+commands:
+  startraid:
+    description: Start a raid
+    usage: /raids start <raid template>
+    permission: raids.startraid
+  cancelraid:
+    description: Cancel raid
+    usage: /raids cancel
+    permission: raids.cancelraid
