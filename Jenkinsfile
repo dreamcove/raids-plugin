@@ -61,13 +61,13 @@ pipeline {
                 sh 'mvn deploy'
             }
         }
-        post {
-            success {
-                discordSend description: "Build ${env.JOB_NAME} ${env.BUILD_NUMBER} on ${env.BRANCH} completed successfully", link: env.BUILD_URL, result: currentBuild.currentResult, title: env.JOB_NAME, webhookURL: env.DISCORD_WEBHOOK
-            }
-            failure {
-                discordSend description: "Build ${env.JOB_NAME} ${env.BUILD_NUMBER} on ${env.BRANCH} failed", link: env.BUILD_URL, result: currentBuild.currentResult, title: env.JOB_NAME, webhookURL: env.DISCORD_WEBHOOK
-            }
+    }
+    post {
+        success {
+            discordSend description: "Build ${env.JOB_NAME} ${env.BUILD_NUMBER} on ${env.BRANCH} completed successfully", link: env.BUILD_URL, result: currentBuild.currentResult, title: env.JOB_NAME, webhookURL: env.DISCORD_WEBHOOK
+        }
+        failure {
+            discordSend description: "Build ${env.JOB_NAME} ${env.BUILD_NUMBER} on ${env.BRANCH} failed", link: env.BUILD_URL, result: currentBuild.currentResult, title: env.JOB_NAME, webhookURL: env.DISCORD_WEBHOOK
         }
     }
 }
