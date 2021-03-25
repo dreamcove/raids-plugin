@@ -11,6 +11,7 @@ pipeline {
     }
     environment {
         PROJECT = 'minecraft:plugins:raids'
+        DISCORD_WEBHOOK = credentials("DISCORD_WEBHOOK")
     }
     stages {
         stage ('Initialize') {
