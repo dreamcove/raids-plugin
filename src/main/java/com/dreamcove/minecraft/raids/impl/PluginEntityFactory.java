@@ -23,6 +23,11 @@ public class PluginEntityFactory extends EntityFactory {
         }
 
         @Override
+        public String getName() {
+            return player.getName();
+        }
+
+        @Override
         public UUID getUniqueId() {
             return player.getUniqueId();
         }

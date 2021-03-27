@@ -73,7 +73,7 @@ public class RaidsManager {
         return lastLocation.get(player.getUniqueId());
     }
 
-    private List<String> getAvailableRaids() {
+    public List<String> getAvailableRaids() {
         if (availableRaids == null) {
             availableRaids = Collections.synchronizedList(EntityFactory.getInstance().getServer()
                     .getWorlds()
@@ -134,7 +134,7 @@ public class RaidsManager {
         file.delete();
     }
 
-    private void removeWorld(World world) throws IOException {
+    public void removeWorld(World world) throws IOException {
         if (EntityFactory.getInstance().getServer().unloadWorld(world.getName())) {
             getLogger().info("Removing raid " + world.getName());
             deleteFile(world.getWorldFolder());
@@ -144,7 +144,7 @@ public class RaidsManager {
 
     private Logger getLogger() {
         if (logger == null) {
-            Logger.getLogger(RaidsManager.class.getName());
+            logger = Logger.getLogger(RaidsManager.class.getName());
         }
 
         return logger;

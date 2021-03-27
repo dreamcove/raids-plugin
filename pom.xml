@@ -128,7 +128,12 @@
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
                 <version>0.8.6</version>
-
+                <configuration>
+                    <excludes>
+                        <exclude>com/dreamcove/minecraft/raids/RaidsPlugin**</exclude>
+                        <exclude>com/dreamcove/minecraft/raids/impl/**</exclude>
+                    </excludes>
+                </configuration>
                 <executions>
                     <execution>
                         <id>prepare</id>
