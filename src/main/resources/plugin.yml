@@ -14,7 +14,13 @@ permissions:
   raids.cancel:
     description: Allows party members to cancel a raid before starting
     default: true
+  raids.exit:
+    description: Allows party members to exit the raid
+    default: true
+  raids.end:
+    description: Allows party members to end the raid
+    default: true
 commands:
   raids:
     description: Manage raids
-    usage: /raids <start|cancel>
+    usage: /raids help

@@ -2,6 +2,7 @@ pipeline {
     agent {
         docker {
             image 'maven:3.6.3-jdk-11'
+            args '-v $HOME/.m2:/root/.m2'
         }
     }
     options {
@@ -47,7 +48,7 @@ pipeline {
             }
             steps {
                 withSonarQubeEnv('Dreamcove') {
-                    sh "${scannerHome}/bin/sonar-scanner -D sonar.links.scm=${env.GIT_URL} -D sonar.projectKey=${env.PROJECT}:`echo ${env.BRANCH_NAME} | tr \\/ _`"
+                    sh "${scannerHome}/bin/sonar-scanner -D sonar.java.binaries=target/classes -D sonar.links.scm=${env.GIT_URL} -D sonar.sources=src/main/java -D sonar.exclusions=**/impl/**,**/RaidsPlugin.java -D sonar.projectKey=${env.PROJECT}:`echo ${env.BRANCH_NAME} | tr \\/ _`"
                     sh 'sleep 10'
                 }
                 timeout(time: 10, unit: 'MINUTES') {

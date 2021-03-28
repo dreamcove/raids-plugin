@@ -1,18 +1,14 @@
 package com.dreamcove.minecraft.raids;
 
-import com.alessiodp.parties.api.Parties;
-import com.alessiodp.parties.api.interfaces.PartiesAPI;
-import com.alessiodp.parties.api.interfaces.Party;
-import com.onarandombox.MultiverseCore.MultiverseCore;
-import com.onarandombox.MultiverseCore.api.MultiverseWorld;
+import com.dreamcove.minecraft.raids.api.*;
+import com.dreamcove.minecraft.raids.impl.PartiesPartyFactory;
+import com.dreamcove.minecraft.raids.impl.PluginEntityFactory;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
-import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
+import java.io.*;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -28,18 +24,23 @@ public class RaidsPlugin extends JavaPlugin {
 
         @Override
         public void run() {
-            String worldName = getQueuedWorld(partyId);
+            String worldName = manager.getQueuedWorld(partyId);
             if (worldName != null) {
-                MultiverseCore core = (MultiverseCore) getServer().getPluginManager().getPlugin("Multiverse-Core");
-                Party party = Parties.getApi().getParty(partyId);
+                Party party = PartyFactory.getInstance().getParty(partyId);
 
-                getLogger().info("Sending party " + party.getName() + " to " + getQueuedWorld(partyId));
+                getLogger().info("Sending party " + party.getName() + " to " + manager.getQueuedWorld(partyId));
 
-                MultiverseWorld world = core.getMVWorldManager().getMVWorld(getQueuedWorld(partyId));
+                World world = EntityFactory.getInstance().getServer().getWorld(manager.getQueuedWorld(partyId));
 
-                party.getMembers().stream().forEach(u -> core.teleportPlayer(sender, getServer().getPlayer(u), world.getSpawnLocation()));
+                party.getMembers().stream()
+                        .map(u -> getServer().getPlayer(u))
+                        .map(p -> EntityFactory.getInstance().wrap(p))
+                        .forEach(p -> {
+                            manager.storeLastLocation(p);
+                            p.teleport(world.getSpawnLocation());
+                        });
 
-                queuedParties.remove(partyId);
+                manager.dequeueParty(partyId);
             }
         }
 
@@ -53,27 +54,30 @@ public class RaidsPlugin extends JavaPlugin {
         super();
     }
 
-    private void queueParty(CommandSender sender, UUID partyId, String worldName) {
-        queuedParties.put(partyId, worldName);
+    private void startRaid(CommandSender sender, UUID partyId, String oldWorld, String newWorld) throws IOException {
+        manager.queueParty(partyId, newWorld);
 
-        Party party = Parties.getApi().getParty(partyId);
+        try {
+            manager.cloneWorld(oldWorld, newWorld);
 
-        party.broadcastMessage("Party is queued for a raid.", null);
-        party.broadcastMessage("Starting in 15 seconds.", null);
-        party.broadcastMessage("Use /raids cancel to abort.", null);
+            Party party = PartyFactory.getInstance().getParty(partyId);
 
-        new CountdownRunnable(sender, partyId, 15).runTaskLater(this, 15 * 20);
-    }
+            party.broadcastMessage("Party is queued for a raid.");
+            party.broadcastMessage("Starting in 15 seconds.");
+            party.broadcastMessage("Use /raids cancel to abort.");
 
-    private String getQueuedWorld(UUID partyId) {
-        return queuedParties.get(partyId);
+            new CountdownRunnable(sender, partyId, 15).runTaskLater(this, 15 * 20);
+        } catch (IOException e) {
+            manager.dequeueParty(partyId);
+            throw e;
+        }
     }
 
     private boolean cancelRaid(UUID partyId) {
-        if (queuedParties.keySet().contains(partyId)) {
-            queuedParties.remove(partyId);
+        if (manager.isPartyQueued(partyId)) {
+            manager.dequeueParty(partyId);
 
-            Parties.getApi().getParty(partyId).broadcastMessage("Raid canceled", null);
+            PartyFactory.getInstance().getParty(partyId).broadcastMessage("Raid canceled");
 
             return true;
         }
@@ -87,24 +91,17 @@ public class RaidsPlugin extends JavaPlugin {
     public void onEnable() {
         super.onEnable();
 
+        EntityFactory.setInstance(new PluginEntityFactory(this));
+        if (getServer().getPluginManager().getPlugin("Parties") != null) {
+            PartyFactory.setInstance(new PartiesPartyFactory());
+        }
+
+        manager = new RaidsManager(getConfig(), getLogger());
+
         new BukkitRunnable() {
             @Override
             public void run() {
-                MultiverseCore core = (MultiverseCore)getServer().getPluginManager().getPlugin("Multiverse-Core");
-
-                for (Iterator<MultiverseWorld> i = core.getMVWorldManager().getMVWorlds().iterator(); i.hasNext();) {
-                    MultiverseWorld w = i.next();
-
-                    if (!queuedParties.values().contains(w.getName())) {
-                        if (w.getName().startsWith("raid_")) {
-                            if (w.getCBWorld().getPlayers().size() == 0) {
-                                getLogger().info("Removing unused dungeon - " + w.getName() + " (no players)");
-
-                                core.getMVWorldManager().deleteWorld(w.getName());
-                            }
-                        }
-                    }
-                }
+                manager.cleanRaids();
             }
         }.runTaskTimer(this, 20, 20 * 15);
     }
@@ -115,10 +112,10 @@ public class RaidsPlugin extends JavaPlugin {
             if (args.length >= 1) {
                 Player player = null;
 
-                if (sender instanceof Player) {
-                    player = (Player) sender;
+                if (sender instanceof org.bukkit.entity.Player) {
+                    player = EntityFactory.getInstance().wrap((org.bukkit.entity.Player) sender);
                 } else if (args.length >= 1) {
-                    player = getServer().getPlayer(args[args.length - 1]);
+                    player = EntityFactory.getInstance().getServer().getPlayer(args[args.length - 1]);
 
                     if (player == null) {
                         sender.sendMessage("Player not specified as last parameter");
@@ -129,35 +126,29 @@ public class RaidsPlugin extends JavaPlugin {
                     switch (args[0]) {
                         case "start":
                             if (args.length == 2) {
-                                MultiverseCore core = (MultiverseCore) getServer().getPluginManager().getPlugin("Multiverse-Core");
-                                PartiesAPI parties = Parties.getApi();
-
                                 // Find Party
                                 final UUID playerId = player.getUniqueId();
-                                List<Party> foundParties = parties.getOnlineParties()
-                                        .stream()
-                                        .filter(p -> p.getMembers().contains(playerId))
-                                        .collect(Collectors.toList());
-                                if (foundParties.size() == 0) {
+                                final UUID partyId = PartyFactory.getInstance().getPartyForPlayer(playerId);
+                                if (partyId == null) {
                                     sender.sendMessage("Player must belong to party");
                                 } else {
-                                    Party party = foundParties.get(0);
                                     boolean found = false;
-                                    for (Iterator<MultiverseWorld> i = core.getMVWorldManager().getMVWorlds().iterator(); i.hasNext(); ) {
-                                        MultiverseWorld w = i.next();
+                                    for (Iterator<World> i = EntityFactory.getInstance().getServer().getWorlds().iterator(); i.hasNext(); ) {
+                                        World w = i.next();
 
                                         if (w.getName().equals("template_" + args[1])) {
                                             sender.sendMessage("Creating raid dungeon");
 
                                             String newWorld = "raid_" + args[1] + "_" + System.currentTimeMillis();
 
-                                            queuedParties.put(party.getId(), newWorld);
-
-                                            if (core.getMVWorldManager().cloneWorld(w.getName(), newWorld)) {
-                                                queueParty(sender, party.getId(), newWorld);
+                                            try {
+                                                startRaid(sender, partyId, args[1], newWorld);
+                                                found = true;
+                                            } catch (IOException e) {
+                                                sender.sendMessage("Error creating raid");
+                                                getLogger().throwing(RaidsPlugin.class.getName(), "onCommand", e);
                                             }
 
-                                            found = true;
                                         }
                                     }
 
@@ -168,15 +159,12 @@ public class RaidsPlugin extends JavaPlugin {
                             } else {
                                 sender.sendMessage("/startraid requires 2 arguments");
                             }
-
-                            return true;
+                            break;
                         case "cancel":
                             // Check to see if calling entity is a player
                             if (sender instanceof Player) {
-                                PartiesAPI parties = Parties.getApi();
-
                                 final UUID playerId = player.getUniqueId();
-                                List<Party> foundParties = parties.getOnlineParties()
+                                List<Party> foundParties = PartyFactory.getInstance().getOnlineParties()
                                         .stream()
                                         .filter(p -> p.getMembers().contains(playerId))
                                         .collect(Collectors.toList());
@@ -191,6 +179,21 @@ public class RaidsPlugin extends JavaPlugin {
                             } else {
                                 sender.sendMessage("Only players can cancel raids");
                             }
+                            break;
+                        case "exit":
+                            manager.returnLastLocation(player);
+                            break;
+                        case "end":
+                            if (manager.getLastLocation(player) != null) {
+                                player
+                                    .getWorld()
+                                    .getEntities()
+                                    .stream()
+                                    .filter(e -> e instanceof org.bukkit.entity.Player)
+                                    .map(e -> EntityFactory.getInstance().wrap((org.bukkit.entity.Player)e))
+                                    .forEach(p -> manager.returnLastLocation(p));
+                            }
+                            break;
                     }
                 }
             } else {
@@ -202,9 +205,8 @@ public class RaidsPlugin extends JavaPlugin {
         return false;
     }
 
-    @Nullable
     @Override
-    public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, @NotNull String[] args) {
+    public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         List<String> result = new ArrayList<String>();
 
         if (command != null && command.getName().equals("raids")) {
@@ -215,12 +217,16 @@ public class RaidsPlugin extends JavaPlugin {
                 if (sender.hasPermission("raids.cancel")) {
                     result.add("cancel");
                 }
+                if (sender.hasPermission("raids.exit")) {
+                    result.add("exit");
+                }
+                if (sender.hasPermission("raids.end")) {
+                    result.add("end");
+                }
             } else if (args.length == 2) {
                 if (args[0].equals("start") && sender.hasPermission("raids.start")) {
-                    MultiverseCore core = (MultiverseCore)getServer().getPluginManager().getPlugin("Multiverse-Core");
-
-                    result.addAll(core.getMVWorldManager()
-                            .getMVWorlds()
+                    result.addAll(getServer()
+                            .getWorlds()
                             .stream()
                             .filter(w -> w.getName().startsWith("template_"))
                             .map(w -> w.getName().substring(9))
@@ -232,21 +238,5 @@ public class RaidsPlugin extends JavaPlugin {
         return result;
     }
 
-    private List<String> getAvailableRaids() {
-        if (availableRaids == null) {
-            MultiverseCore core = (MultiverseCore)getServer().getPluginManager().getPlugin("Multiverse-Core");
-
-            availableRaids = Collections.synchronizedList(core.getMVWorldManager()
-                    .getMVWorlds()
-                    .stream()
-                    .filter(w -> w.getName().startsWith("template_"))
-                    .map(w -> w.getName().substring(9))
-                    .collect(Collectors.toList()));
-        }
-
-        return availableRaids;
-    }
-
-    private List<String> availableRaids = null;
-    private Map<UUID, String> queuedParties = Collections.synchronizedMap(new HashMap<UUID, String>());
+    private RaidsManager manager;
 }
