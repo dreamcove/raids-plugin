@@ -206,20 +206,23 @@ public class RaidsManager {
 
             try {
                 is = new FileInputStream(fromFile);
-                os = new FileOutputStream(toFile);
+                try {
+                    os = new FileOutputStream(toFile);
 
-                do {
-                    read = is.read(buffer);
-                    if (read > 0) {
-                        os.write(buffer, 0, read);
+                    do {
+                        read = is.read(buffer);
+                        if (read > 0) {
+                            os.write(buffer, 0, read);
+                        }
+                    } while (read > 0);
+                } finally {
+                    if (os != null) {
+                        os.close();
                     }
-                } while (read > 0);
+                }
             } finally {
                 if (is != null) {
                     is.close();
-                }
-                if (os != null) {
-                    os.close();
                 }
             }
         }
