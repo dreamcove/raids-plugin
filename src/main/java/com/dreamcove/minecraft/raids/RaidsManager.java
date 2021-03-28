@@ -213,12 +213,8 @@ public class RaidsManager {
                     }
                 } while (read > 0);
             } finally {
-                if (is != null) {
-                    is.close();
-                }
-                if (os != null) {
-                    os.close();
-                }
+                is.close();
+                os.close();
             }
         }
     }
