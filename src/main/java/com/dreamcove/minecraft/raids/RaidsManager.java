@@ -18,50 +18,21 @@ import java.util.stream.Collectors;
  */
 public class RaidsManager {
 
-    class StartRaidRunnable implements Runnable {
-        public StartRaidRunnable(UUID partyId) {
-            super();
-
-            this.partyId = partyId;
-        }
-
-        @Override
-        public void run() {
-            String worldName = getQueuedWorld(partyId);
-            if (worldName != null) {
-                Party party = PartyFactory.getInstance().getParty(partyId);
-
-                getLogger().info("Sending party " + party.getName() + " to " + getQueuedWorld(partyId));
-
-                World world = EntityFactory.getInstance().getServer().getWorld(getQueuedWorld(partyId));
-
-                party.getMembers().stream()
-                        .map(u -> getServer().getPlayer(u))
-                        .forEach(p -> {
-                            storeLastLocation(p);
-                            p.teleport(world.getSpawnLocation());
-                        });
-
-                dequeueParty(partyId);
-            }
-        }
-
-        UUID partyId;
-    }
-
-
     // Constants
     public static final String CMD_RELOAD = "reload";
     public static final String CMD_START = "start";
     public static final String CMD_CANCEL = "cancel";
     public static final String CMD_END = "end";
     public static final String CMD_EXIT = "exit";
-
     public static final String PERM_RELOAD = "raids.reload";
     public static final String PERM_START_RAID = "raids.start";
     public static final String PERM_CANCEL_RAID = "raids.cancel";
     public static final String PERM_END_RAID = "raids.end";
     public static final String PERM_EXIT_RAID = "raids.exit";
+    private final Map<UUID, String> queuedParties = Collections.synchronizedMap(new HashMap<>());
+    private final Map<UUID, Location> lastLocation = Collections.synchronizedMap(new HashMap<>());
+    private List<String> availableRaids = null;
+    private Logger logger;
 
     // Constructors
     public RaidsManager(Logger logger) {
@@ -123,6 +94,19 @@ public class RaidsManager {
         return result;
     }
 
+    public List<String> getAvailableRaids() {
+        if (availableRaids == null) {
+            availableRaids = Collections.synchronizedList(EntityFactory.getInstance().getServer()
+                    .getWorlds()
+                    .stream()
+                    .filter(w -> w.getName().startsWith("template_"))
+                    .map(w -> w.getName().substring(9))
+                    .collect(Collectors.toList()));
+        }
+
+        return availableRaids;
+    }
+
     public void storeLastLocation(Player player) {
         lastLocation.put(player.getUniqueId(), player.getLocation());
     }
@@ -137,20 +121,6 @@ public class RaidsManager {
     public Location getLastLocation(Player player) {
         return lastLocation.get(player.getUniqueId());
     }
-
-    public List<String> getAvailableRaids() {
-        if (availableRaids == null) {
-            availableRaids = Collections.synchronizedList(EntityFactory.getInstance().getServer()
-                    .getWorlds()
-                    .stream()
-                    .filter(w -> w.getName().startsWith("template_"))
-                    .map(w -> w.getName().substring(9))
-                    .collect(Collectors.toList()));
-        }
-
-        return availableRaids;
-    }
-
 
     public String getQueuedWorld(UUID partyId) {
         return queuedParties.get(partyId);
@@ -225,12 +195,12 @@ public class RaidsManager {
             for (File file : files) {
                 copyFile(file, new File(toFile, file.getName()));
             }
-        } else if (!fromFile.getName().equals("uid.dat")){
+        } else if (!fromFile.getName().equals("uid.dat")) {
             byte[] buffer = new byte[8192];
             int read;
 
-            InputStream is;
-            OutputStream os;
+            InputStream is = null;
+            OutputStream os = null;
 
             try {
                 is = new FileInputStream(fromFile);
@@ -298,7 +268,7 @@ public class RaidsManager {
             party.broadcastMessage("Starting in 15 seconds.");
             party.broadcastMessage("Use /raids cancel to abort.");
 
-            EntityFactory.getInstance().getServer().delayRunnable(new StartRaidRunnable(partyId), (long)15 * 20);
+            EntityFactory.getInstance().getServer().delayRunnable(new StartRaidRunnable(partyId), (long) 15 * 20);
         } catch (IOException e) {
             dequeueParty(partyId);
             throw e;
@@ -398,10 +368,34 @@ public class RaidsManager {
         return false;
     }
 
+    class StartRaidRunnable implements Runnable {
+        UUID partyId;
 
+        public StartRaidRunnable(UUID partyId) {
+            super();
 
-    private List<String> availableRaids = null;
-    private final Map<UUID, String> queuedParties = Collections.synchronizedMap(new HashMap<>());
-    private final Map<UUID, Location> lastLocation = Collections.synchronizedMap(new HashMap<>());
-    private Logger logger;
+            this.partyId = partyId;
+        }
+
+        @Override
+        public void run() {
+            String worldName = getQueuedWorld(partyId);
+            if (worldName != null) {
+                Party party = PartyFactory.getInstance().getParty(partyId);
+
+                getLogger().info("Sending party " + party.getName() + " to " + getQueuedWorld(partyId));
+
+                World world = EntityFactory.getInstance().getServer().getWorld(getQueuedWorld(partyId));
+
+                party.getMembers().stream()
+                        .map(u -> getServer().getPlayer(u))
+                        .forEach(p -> {
+                            storeLastLocation(p);
+                            p.teleport(world.getSpawnLocation());
+                        });
+
+                dequeueParty(partyId);
+            }
+        }
+    }
 }

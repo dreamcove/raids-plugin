@@ -1,26 +1,26 @@
 package com.dreamcove.minecraft.raids;
 
 import com.dreamcove.minecraft.raids.api.EntityFactory;
-import com.dreamcove.minecraft.raids.api.Player;
 import com.dreamcove.minecraft.raids.api.World;
 import org.bukkit.Location;
 import org.bukkit.WorldCreator;
-import org.bukkit.configuration.Configuration;
 import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.FileConfiguration;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.Assertions.*;
-import org.junit.jupiter.api.function.ThrowingSupplier;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.UUID;
 
 public class TestRaidsManager {
+    private static RaidsManager manager;
+
     @BeforeAll
     public static void load() {
         FileConfiguration file = new FileConfiguration() {
@@ -175,6 +175,4 @@ public class TestRaidsManager {
             Assertions.fail(t);
         }
     }
-
-    private static RaidsManager manager;
 }

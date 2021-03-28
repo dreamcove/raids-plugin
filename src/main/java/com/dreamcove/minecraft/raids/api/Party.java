@@ -4,11 +4,11 @@ import java.util.List;
 import java.util.UUID;
 
 public interface Party {
-    public UUID getId();
+    UUID getId();
 
-    public List<UUID> getMembers();
+    List<UUID> getMembers();
 
-    public void broadcastMessage(String message);
+    void broadcastMessage(String message);
 
-    public String getName();
+    String getName();
 }

@@ -18,7 +18,25 @@ import java.util.stream.Collectors;
 
 public class PluginEntityFactory extends EntityFactory {
 
+    private final JavaPlugin plugin;
+
+    public PluginEntityFactory(JavaPlugin plugin) {
+        this.plugin = plugin;
+    }
+
+    @Override
+    public Server getServer() {
+        return new PluginServer();
+    }
+
+    @Override
+    public Player wrap(org.bukkit.entity.Player player) {
+        return new PluginPlayer(player);
+    }
+
     private class PluginPlayer implements Player {
+        org.bukkit.entity.Player player;
+
         PluginPlayer(org.bukkit.entity.Player player) {
             this.player = player;
         }
@@ -48,8 +66,6 @@ public class PluginEntityFactory extends EntityFactory {
             return new PluginWorld(player.getWorld());
         }
 
-        org.bukkit.entity.Player player;
-
         @Override
         public void sendMessage(String message) {
             player.sendMessage(message);
@@ -57,6 +73,8 @@ public class PluginEntityFactory extends EntityFactory {
     }
 
     private class PluginWorld implements World {
+        private final org.bukkit.World world;
+
         PluginWorld(org.bukkit.World world) {
             this.world = world;
         }
@@ -91,8 +109,6 @@ public class PluginEntityFactory extends EntityFactory {
         public void setDifficulty(Difficulty difficulty) {
             world.setDifficulty(difficulty);
         }
-
-        private org.bukkit.World world;
     }
 
     private class PluginServer implements Server {
@@ -162,20 +178,4 @@ public class PluginEntityFactory extends EntityFactory {
 
         }
     }
-
-    public PluginEntityFactory(JavaPlugin plugin) {
-        this.plugin = plugin;
-    }
-
-    @Override
-    public Server getServer() {
-        return new PluginServer();
-    }
-
-    @Override
-    public Player wrap(org.bukkit.entity.Player player) {
-        return new PluginPlayer(player);
-    }
-
-    private JavaPlugin plugin;
 }

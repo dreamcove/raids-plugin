@@ -10,34 +10,6 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 public class PartiesPartyFactory extends PartyFactory {
-    private class PartiesParty implements Party {
-        PartiesParty(com.alessiodp.parties.api.interfaces.Party party) {
-            this.party = party;
-        }
-
-        com.alessiodp.parties.api.interfaces.Party party;
-
-        @Override
-        public UUID getId() {
-            return party.getId();
-        }
-
-        @Override
-        public List<UUID> getMembers() {
-            return new ArrayList<UUID>(party.getMembers());
-        }
-
-        @Override
-        public void broadcastMessage(String message) {
-            party.broadcastMessage(message, null);
-        }
-
-        @Override
-        public String getName() {
-            return party.getName();
-        }
-    }
-
     @Override
     public boolean arePartiesEnabled() {
         return true;
@@ -62,5 +34,33 @@ public class PartiesPartyFactory extends PartyFactory {
                 .map(p -> p.getId())
                 .findFirst()
                 .get();
+    }
+
+    private class PartiesParty implements Party {
+        com.alessiodp.parties.api.interfaces.Party party;
+
+        PartiesParty(com.alessiodp.parties.api.interfaces.Party party) {
+            this.party = party;
+        }
+
+        @Override
+        public UUID getId() {
+            return party.getId();
+        }
+
+        @Override
+        public List<UUID> getMembers() {
+            return new ArrayList<UUID>(party.getMembers());
+        }
+
+        @Override
+        public void broadcastMessage(String message) {
+            party.broadcastMessage(message, null);
+        }
+
+        @Override
+        public String getName() {
+            return party.getName();
+        }
     }
 }
