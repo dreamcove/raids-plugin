@@ -48,7 +48,7 @@ pipeline {
             }
             steps {
                 withSonarQubeEnv('Dreamcove') {
-                    sh "${scannerHome}/bin/sonar-scanner -D sonar.java.binaries=target/classes -D sonar.links.scm=${env.GIT_URL} -D sonar.test.exclusions=**/Test*.java -D sonar.exclusions=**/impl/**,**/RaidsPlugin.java -D sonar.projectKey=${env.PROJECT}:`echo ${env.BRANCH_NAME} | tr \\/ _`"
+                    sh "${scannerHome}/bin/sonar-scanner -D sonar.java.binaries=target/classes -D sonar.links.scm=${env.GIT_URL} -D sonar.test.exclusions=**/test/** -D sonar.exclusions=**/Test*.java,**/impl/**,**/RaidsPlugin.java -D sonar.projectKey=${env.PROJECT}:`echo ${env.BRANCH_NAME} | tr \\/ _`"
                     sh 'sleep 10'
                 }
                 timeout(time: 10, unit: 'MINUTES') {
