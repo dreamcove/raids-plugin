@@ -1,13 +1,17 @@
 package com.dreamcove.minecraft.raids;
 
 import com.dreamcove.minecraft.raids.api.*;
+import com.dreamcove.minecraft.raids.config.Raid;
+import com.dreamcove.minecraft.raids.config.RaidsConfig;
 import org.bukkit.Difficulty;
 import org.bukkit.Location;
 import org.bukkit.WorldCreator;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Entity;
 
 import java.io.*;
-import java.nio.file.*;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -33,12 +37,13 @@ public class RaidsManager {
     public static final String PERM_EXIT_RAID = "raids.exit";
     private final Map<UUID, String> queuedParties = Collections.synchronizedMap(new HashMap<>());
     private final Map<UUID, Location> lastLocation = Collections.synchronizedMap(new HashMap<>());
-    private List<String> availableRaids = null;
     private Logger logger;
+    private final RaidsConfig config;
 
     // Constructors
-    public RaidsManager(Logger logger) {
+    public RaidsManager(FileConfiguration config, Logger logger) {
         this.logger = logger;
+        this.config = RaidsConfig.from(config);
     }
 
     // Instance Methods
@@ -98,16 +103,7 @@ public class RaidsManager {
     }
 
     public List<String> getAvailableRaids() {
-        if (availableRaids == null) {
-            availableRaids = Collections.synchronizedList(EntityFactory.getInstance().getServer()
-                    .getWorlds()
-                    .stream()
-                    .filter(w -> w.getName().startsWith("template_"))
-                    .map(w -> w.getName().substring(9))
-                    .collect(Collectors.toList()));
-        }
-
-        return availableRaids;
+        return config.getRaids().stream().map(Raid::getName).collect(Collectors.toList());
     }
 
     public void storeLastLocation(Player player) {
@@ -262,23 +258,18 @@ public class RaidsManager {
         return false;
     }
 
-    public void startRaid(UUID partyId, String oldWorld, String newWorld) throws IOException {
+    public void startRaid(UUID partyId, String newWorld, Raid raid) {
         queueParty(partyId, newWorld);
 
-        try {
-            cloneWorld(oldWorld, newWorld);
+        Party party = PartyFactory.getInstance().getParty(partyId);
 
-            Party party = PartyFactory.getInstance().getParty(partyId);
-
+        if (raid.getJoinIn() > 0) {
             party.broadcastMessage("Party is queued for a raid.");
-            party.broadcastMessage("Starting in 15 seconds.");
+            party.broadcastMessage("Starting in " + raid.getJoinIn() + " seconds.");
             party.broadcastMessage("Use /raids cancel to abort.");
-
-            EntityFactory.getInstance().getServer().delayRunnable(new StartRaidRunnable(partyId), (long) 15 * 20);
-        } catch (IOException e) {
-            dequeueParty(partyId);
-            throw e;
         }
+
+        EntityFactory.getInstance().getServer().delayRunnable(new StartRaidRunnable(partyId), (long) raid.getJoinIn() * 20);
     }
 
     public boolean processCommand(MessageReceiver receiver, String command, List<String> args, List<String> perms) {
@@ -311,26 +302,24 @@ public class RaidsManager {
                                     receiver.sendMessage("Player must belong to party");
                                 } else {
                                     boolean found = false;
-                                    for (World w : EntityFactory.getInstance().getServer().getWorlds()) {
-                                        if (w.getName().equals("template_" + args.get(1))) {
-                                            receiver.sendMessage("Creating raid dungeon");
 
-                                            String newWorld = "raid_" + args.get(1) + "_" + System.currentTimeMillis();
+                                    Raid raid = getRaid(args.get(1));
+                                    if (raid != null) {
+                                        receiver.sendMessage("Creating raid dungeon");
 
-                                            try {
-                                                cloneWorld(w.getName(), newWorld);
-                                                startRaid(partyId, args.get(1), newWorld);
-                                                found = true;
-                                            } catch (IOException e) {
-                                                receiver.sendMessage("Error creating raid");
-                                                getLogger().throwing(RaidsPlugin.class.getName(), "onCommand", e);
-                                            }
+                                        String newWorld = "raid_" + raid.getName() + "_" + System.currentTimeMillis();
 
+                                        try {
+                                            cloneWorld(raid.getDungeonName(), newWorld);
+                                            startRaid(partyId, newWorld, raid);
+                                            found = true;
+                                        } catch (IOException e) {
+                                            receiver.sendMessage("Error creating raid");
+                                            getLogger().throwing(RaidsPlugin.class.getName(), "onCommand", e);
                                         }
-                                    }
 
-                                    if (!found) {
-                                        receiver.sendMessage("Could not find raid template");
+                                    } else {
+                                        receiver.sendMessage("Could not find raid raid");
                                     }
                                 }
                             } else {
@@ -377,6 +366,13 @@ public class RaidsManager {
         }
 
         return false;
+    }
+
+    private Raid getRaid(String name) {
+        return config.getRaids().stream()
+                .filter(r -> r.getName().equals(name))
+                .findFirst()
+                .orElse(null);
     }
 
     class StartRaidRunnable implements Runnable {

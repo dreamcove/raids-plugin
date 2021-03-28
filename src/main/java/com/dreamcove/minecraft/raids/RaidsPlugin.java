@@ -25,14 +25,14 @@ public class RaidsPlugin extends JavaPlugin {
 
     private List<String> getPermissions(CommandSender sender) {
         return Stream.of(
-                        RaidsManager.PERM_CANCEL_RAID,
-                        RaidsManager.PERM_END_RAID,
-                        RaidsManager.PERM_EXIT_RAID,
-                        RaidsManager.PERM_START_RAID,
-                        RaidsManager.PERM_RELOAD
-                )
-                        .filter(sender::hasPermission)
-                        .collect(Collectors.toList());
+                RaidsManager.PERM_CANCEL_RAID,
+                RaidsManager.PERM_END_RAID,
+                RaidsManager.PERM_EXIT_RAID,
+                RaidsManager.PERM_START_RAID,
+                RaidsManager.PERM_RELOAD
+        )
+                .filter(sender::hasPermission)
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -62,7 +62,7 @@ public class RaidsPlugin extends JavaPlugin {
             PartyFactory.setInstance(new PartiesPartyFactory());
         }
 
-        manager = new RaidsManager(getLogger());
+        manager = new RaidsManager(getConfig(), getLogger());
 
         EntityFactory.getInstance().getServer().scheduleRunnable(() -> manager.cleanRaids(), 60 * 20);
     }
