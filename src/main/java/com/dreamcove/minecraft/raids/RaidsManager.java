@@ -51,6 +51,12 @@ public class RaidsManager {
 
 
     // Constants
+    public static final String CMD_RELOAD = "reload";
+    public static final String CMD_START = "start";
+    public static final String CMD_CANCEL = "cancel";
+    public static final String CMD_END = "end";
+    public static final String CMD_EXIT = "exit";
+
     public static final String PERM_RELOAD = "raids.reload";
     public static final String PERM_START_RAID = "raids.start";
     public static final String PERM_CANCEL_RAID = "raids.cancel";
@@ -95,24 +101,22 @@ public class RaidsManager {
         if (command.equals("raids")) {
             if (args.size() == 1) {
                 if (perms.contains(PERM_START_RAID)) {
-                    result.add("start");
+                    result.add(CMD_START);
                 }
                 if (perms.contains(PERM_CANCEL_RAID)) {
-                    result.add("cancel");
+                    result.add(CMD_CANCEL);
                 }
                 if (perms.contains(PERM_EXIT_RAID)) {
-                    result.add("exit");
+                    result.add(CMD_EXIT);
                 }
                 if (perms.contains(PERM_END_RAID)) {
-                    result.add("end");
+                    result.add(CMD_END);
                 }
                 if (perms.contains(PERM_RELOAD)) {
-                    result.add("reload");
+                    result.add(CMD_RELOAD);
                 }
-            } else if (args.size() == 2) {
-                if (args.get(1).equals("start") && perms.contains(PERM_START_RAID)) {
-                    result.addAll(getAvailableRaids());
-                }
+            } else if (args.size() == 2 && args.get(1).equals(CMD_START) && perms.contains(PERM_START_RAID)) {
+                result.addAll(getAvailableRaids());
             }
         }
 
@@ -166,17 +170,13 @@ public class RaidsManager {
 
     public void cleanRaids() {
         for (World w : getServer().getWorlds()) {
-            if (!queuedParties.containsValue(w.getName())) {
-                if (w.getName().startsWith("raid_")) {
-                    if (w.getPlayers().size() == 0) {
-                        getLogger().info("Removing unused dungeon - " + w.getName() + " (no players)");
+            if (!queuedParties.containsValue(w.getName()) && w.getName().startsWith("raid_") && w.getPlayers().isEmpty()) {
+                getLogger().info("Removing unused dungeon - " + w.getName() + " (no players)");
 
-                        try {
-                            removeWorld(w);
-                        } catch (IOException e) {
-                            getLogger().throwing(RaidsPlugin.class.getName(), "onEnable", e);
-                        }
-                    }
+                try {
+                    removeWorld(w);
+                } catch (IOException e) {
+                    getLogger().throwing(RaidsPlugin.class.getName(), "onEnable", e);
                 }
             }
         }
@@ -314,7 +314,7 @@ public class RaidsManager {
 
                 if (player != null) {
                     switch (args.get(0)) {
-                        case "start":
+                        case CMD_START:
                             if (args.size() == 2) {
                                 // Find Party
                                 final UUID playerId = player.getUniqueId();
@@ -348,7 +348,7 @@ public class RaidsManager {
                                 receiver.sendMessage("/raids start requires 2 arguments");
                             }
                             break;
-                        case "cancel":
+                        case CMD_CANCEL:
                             // Check to see if calling entity is a player
                             if (receiver instanceof Player) {
                                 final UUID playerId = player.getUniqueId();
@@ -368,10 +368,10 @@ public class RaidsManager {
                                 receiver.sendMessage("Only players can cancel raids");
                             }
                             break;
-                        case "exit":
+                        case CMD_EXIT:
                             returnLastLocation(player);
                             break;
-                        case "end":
+                        case CMD_END:
                             if (getLastLocation(player) != null) {
                                 player
                                         .getWorld()
