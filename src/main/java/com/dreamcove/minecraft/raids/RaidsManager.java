@@ -7,6 +7,7 @@ import org.bukkit.WorldCreator;
 import org.bukkit.entity.Entity;
 
 import java.io.*;
+import java.nio.file.*;
 import java.util.*;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -145,33 +146,33 @@ public class RaidsManager {
             if (!queuedParties.containsValue(w.getName()) && w.getName().startsWith("raid_") && w.getPlayers().isEmpty()) {
                 getLogger().info("Removing unused dungeon - " + w.getName() + " (no players)");
 
-                removeWorld(w);
+                try {
+                    removeWorld(w);
+                } catch (IOException ioExc) {
+                    getLogger().severe("Unable to remove " + w.getName());
+                    getLogger().throwing(RaidsManager.class.getName(), "cleanRaids", ioExc);
+                }
             }
         }
     }
 
-    public boolean deleteFile(File file) {
+    public void deleteFile(File file) throws IOException {
         if (file.isDirectory()) {
             File[] files = file.listFiles();
             assert files != null;
             for (File value : files) {
-                if (!deleteFile(value)) {
-                    return false;
-                }
+                deleteFile(value);
             }
         }
 
-        return file.delete();
+        Files.delete(Paths.get(file.toURI()));
     }
 
-    public void removeWorld(World world) {
+    public void removeWorld(World world) throws IOException {
         if (EntityFactory.getInstance().getServer().unloadWorld(world.getName())) {
             getLogger().info("Removing raid " + world.getName());
-            if (!deleteFile(world.getWorldFolder())) {
-                getLogger().warning("Unable to remove " + world.getName());
-            } else {
-                getLogger().info(world.getName() + " removed.");
-            }
+            deleteFile(world.getWorldFolder());
+            getLogger().info(world.getName() + " removed.");
         }
     }
 

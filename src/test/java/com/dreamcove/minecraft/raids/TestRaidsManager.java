@@ -92,7 +92,11 @@ public class TestRaidsManager {
 
     @AfterAll
     public static void unload() {
-        manager.deleteFile(EntityFactory.getInstance().getServer().getWorldContainer());
+        try {
+            manager.deleteFile(EntityFactory.getInstance().getServer().getWorldContainer());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     @Test
