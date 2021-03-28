@@ -80,29 +80,35 @@ public class TestEntityFactory extends EntityFactory {
 
         private final String name;
         private final List<Player> players = new ArrayList<>();
-        private Difficulty difficulty;        @Override
+        private Difficulty difficulty;
+
+        public TestWorld(String name) {
+            this.name = name;
+        }        @Override
         public String getName() {
             return name;
         }
 
-        public TestWorld(String name) {
-            this.name = name;
-        }
-
         public void addPlayer(Player player) {
             players.add(player);
-        }        @Override
+        }
+
+        public void clearPlayers() {
+            players.clear();
+        }
+
+
+
+        @Override
         public File getWorldFolder() {
             return new File("test-data", getName());
         }
-
 
 
         @Override
         public Location getSpawnLocation() {
             return new Location(null, 10, 10, 10);
         }
-
 
 
         @Override
@@ -127,7 +133,11 @@ public class TestEntityFactory extends EntityFactory {
     class TestServer implements Server {
 
         List<Player> players = new ArrayList<Player>();
-        List<World> worlds = new ArrayList<World>();        @Override
+        List<World> worlds = new ArrayList<World>();
+
+        protected void addPlayer(Player player) {
+            players.add(player);
+        }        @Override
         public World getWorld(String name) {
             return getWorlds().stream()
                     .filter(w -> w.getName().equals(name))
@@ -135,15 +145,12 @@ public class TestEntityFactory extends EntityFactory {
                     .orElse(null);
         }
 
-        protected void addPlayer(Player player) {
-            players.add(player);
-        }
+
 
         @Override
         public List<World> getWorlds() {
             return new ArrayList<World>(worlds);
         }
-
 
 
         @Override

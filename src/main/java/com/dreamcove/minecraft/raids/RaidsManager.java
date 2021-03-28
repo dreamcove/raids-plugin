@@ -150,7 +150,7 @@ public class RaidsManager {
         }
     }
 
-    private boolean deleteFile(File file) {
+    public boolean deleteFile(File file) {
         if (file.isDirectory()) {
             File[] files = file.listFiles();
             assert files != null;

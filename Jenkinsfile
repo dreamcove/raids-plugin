@@ -34,12 +34,7 @@ pipeline {
         }
         stage ('Test') {
             steps {
-                sh 'mvn test'
-            }
-        }
-        stage ('Package') {
-            steps {
-                sh 'mvn package'
+                sh 'mvn test package'
             }
         }
         stage('Code Analysis') {
