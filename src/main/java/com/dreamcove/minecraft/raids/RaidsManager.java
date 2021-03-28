@@ -173,32 +173,33 @@ public class RaidsManager {
             if (!queuedParties.containsValue(w.getName()) && w.getName().startsWith("raid_") && w.getPlayers().isEmpty()) {
                 getLogger().info("Removing unused dungeon - " + w.getName() + " (no players)");
 
-                try {
-                    removeWorld(w);
-                } catch (IOException e) {
-                    getLogger().throwing(RaidsPlugin.class.getName(), "onEnable", e);
-                }
+                removeWorld(w);
             }
         }
     }
 
-    private void deleteFile(File file) {
+    private boolean deleteFile(File file) {
         if (file.isDirectory()) {
             File[] files = file.listFiles();
             assert files != null;
             for (File value : files) {
-                deleteFile(value);
+                if (!deleteFile(value)) {
+                    return false;
+                }
             }
         }
 
-        file.delete();
+        return file.delete();
     }
 
-    public void removeWorld(World world) throws IOException {
+    public void removeWorld(World world) {
         if (EntityFactory.getInstance().getServer().unloadWorld(world.getName())) {
             getLogger().info("Removing raid " + world.getName());
-            deleteFile(world.getWorldFolder());
-            getLogger().info(world.getName() + " removed.");
+            if (!deleteFile(world.getWorldFolder())) {
+                getLogger().warning("Unable to remove " + world.getName());
+            } else {
+                getLogger().info(world.getName() + " removed.");
+            }
         }
     }
 
@@ -228,20 +229,27 @@ public class RaidsManager {
             byte[] buffer = new byte[8192];
             int read;
 
-            InputStream is = new FileInputStream(fromFile);
-            OutputStream os = new FileOutputStream(toFile);
+            InputStream is;
+            OutputStream os;
 
-            do {
-                read = is.read(buffer);
-                if (read > 0) {
-                    os.write(buffer, 0, read);
+            try {
+                is = new FileInputStream(fromFile);
+                os = new FileOutputStream(toFile);
+
+                do {
+                    read = is.read(buffer);
+                    if (read > 0) {
+                        os.write(buffer, 0, read);
+                    }
+                } while (read > 0);
+            } finally {
+                if (is != null) {
+                    is.close();
                 }
-            } while (read > 0);
-
-            is.close();
-            os.close();
-
-            toFile.setLastModified(fromFile.lastModified());
+                if (os != null) {
+                    os.close();
+                }
+            }
         }
     }
 
@@ -290,7 +298,7 @@ public class RaidsManager {
             party.broadcastMessage("Starting in 15 seconds.");
             party.broadcastMessage("Use /raids cancel to abort.");
 
-            EntityFactory.getInstance().getServer().delayRunnable(new StartRaidRunnable(partyId), 15 * 20);
+            EntityFactory.getInstance().getServer().delayRunnable(new StartRaidRunnable(partyId), (long)15 * 20);
         } catch (IOException e) {
             dequeueParty(partyId);
             throw e;
