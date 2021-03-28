@@ -23,6 +23,18 @@ public class RaidsPlugin extends JavaPlugin {
         super();
     }
 
+    private List<String> getPermissions(CommandSender sender) {
+        return Stream.of(
+                        RaidsManager.PERM_CANCEL_RAID,
+                        RaidsManager.PERM_END_RAID,
+                        RaidsManager.PERM_EXIT_RAID,
+                        RaidsManager.PERM_START_RAID,
+                        RaidsManager.PERM_RELOAD
+                )
+                        .filter(sender::hasPermission)
+                        .collect(Collectors.toList());
+    }
+
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         MessageReceiver receiver;
@@ -33,23 +45,12 @@ public class RaidsPlugin extends JavaPlugin {
             receiver = sender::sendMessage;
         }
 
-        return manager.processCommand(receiver, command.getName(), Arrays.asList(args));
+        return manager.processCommand(receiver, command.getName(), Arrays.asList(args), getPermissions(sender));
     }
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-        List<String> perms =
-                Stream.of(
-                        RaidsManager.PERM_CANCEL_RAID,
-                        RaidsManager.PERM_END_RAID,
-                        RaidsManager.PERM_EXIT_RAID,
-                        RaidsManager.PERM_START_RAID,
-                        RaidsManager.PERM_RELOAD
-                )
-                        .filter(sender::hasPermission)
-                        .collect(Collectors.toList());
-
-        return manager.getTabComplete(command.getName(), perms, Arrays.asList(args));
+        return manager.getTabComplete(command.getName(), getPermissions(sender), Arrays.asList(args));
     }
 
     @Override

@@ -24,6 +24,7 @@ public class RaidsManager {
     public static final String CMD_CANCEL = "cancel";
     public static final String CMD_END = "end";
     public static final String CMD_EXIT = "exit";
+    public static final String CMD_HELP = "help";
     public static final String PERM_RELOAD = "raids.reload";
     public static final String PERM_START_RAID = "raids.start";
     public static final String PERM_CANCEL_RAID = "raids.cancel";
@@ -71,6 +72,7 @@ public class RaidsManager {
 
         if (command.equals("raids")) {
             if (args.size() == 1) {
+                result.add("CMD_HELP");
                 if (perms.contains(PERM_START_RAID)) {
                     result.add(CMD_START);
                 }
@@ -86,7 +88,7 @@ public class RaidsManager {
                 if (perms.contains(PERM_RELOAD)) {
                     result.add(CMD_RELOAD);
                 }
-            } else if (args.size() == 2 && args.get(1).equals(CMD_START) && perms.contains(PERM_START_RAID)) {
+            } else if (args.size() == 2 && args.get(0).equals(CMD_START) && perms.contains(PERM_START_RAID)) {
                 result.addAll(getAvailableRaids());
             }
         }
@@ -213,8 +215,12 @@ public class RaidsManager {
                     }
                 } while (read > 0);
             } finally {
-                is.close();
-                os.close();
+                if (is != null) {
+                    is.close();
+                }
+                if (os != null) {
+                    os.close();
+                }
             }
         }
     }
@@ -271,7 +277,7 @@ public class RaidsManager {
         }
     }
 
-    public boolean processCommand(MessageReceiver receiver, String command, List<String> args) {
+    public boolean processCommand(MessageReceiver receiver, String command, List<String> args, List<String> perms) {
         if (command.equals("raids")) {
             if (args.size() >= 1) {
                 Player player;
@@ -288,6 +294,10 @@ public class RaidsManager {
 
                 if (player != null) {
                     switch (args.get(0)) {
+                        case CMD_HELP:
+                            for (String help : getHelp(perms)) {
+                                receiver.sendMessage(help);
+                            }
                         case CMD_START:
                             if (args.size() == 2) {
                                 // Find Party
@@ -304,6 +314,7 @@ public class RaidsManager {
                                             String newWorld = "raid_" + args.get(1) + "_" + System.currentTimeMillis();
 
                                             try {
+                                                cloneWorld(w.getName(), newWorld);
                                                 startRaid(partyId, args.get(1), newWorld);
                                                 found = true;
                                             } catch (IOException e) {

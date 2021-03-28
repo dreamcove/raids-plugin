@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import java.util.logging.Logger;
 
 public class TestEntityFactory extends EntityFactory {
 
@@ -34,9 +35,15 @@ public class TestEntityFactory extends EntityFactory {
         private final String name;
         private final UUID uniqueId = UUID.randomUUID();
         private Location location = new Location(null, 0, 0, 0);
+        private World world;
 
         public TestPlayer(String name) {
             this.name = name;
+        }
+
+        @Override
+        public void sendMessage(String message) {
+            Logger.getLogger("Player-" + getName()).info(message);
         }
 
         @Override
@@ -61,41 +68,47 @@ public class TestEntityFactory extends EntityFactory {
 
         @Override
         public World getWorld() {
-            return null;
+            return world;
         }
 
-        @Override
-        public void sendMessage(String message) {
-            System.out.println(message);
+        public void setWorld(World world) {
+            this.world = world;
         }
     }
 
     class TestWorld implements World {
 
         private final String name;
+        private final List<Player> players = new ArrayList<>();
         private Difficulty difficulty;        @Override
         public String getName() {
             return name;
         }
-        private final List<Player> players = new ArrayList<>();        @Override
-        public File getWorldFolder() {
-            return new File("test-data", getName());
-        }
 
         public TestWorld(String name) {
             this.name = name;
-        }        @Override
-        public Location getSpawnLocation() {
-            return new Location(null, 0, 0, 0);
         }
 
         public void addPlayer(Player player) {
             players.add(player);
         }        @Override
+        public File getWorldFolder() {
+            return new File("test-data", getName());
+        }
+
+
+
+        @Override
+        public Location getSpawnLocation() {
+            return new Location(null, 10, 10, 10);
+        }
+
+
+
+        @Override
         public List<Player> getPlayers() {
             return players;
         }
-
 
 
         @Override
@@ -109,27 +122,31 @@ public class TestEntityFactory extends EntityFactory {
         }
 
 
-
-
     }
 
     class TestServer implements Server {
 
-        List<Player> players = new ArrayList<Player>();        @Override
+        List<Player> players = new ArrayList<Player>();
+        List<World> worlds = new ArrayList<World>();        @Override
         public World getWorld(String name) {
             return getWorlds().stream()
                     .filter(w -> w.getName().equals(name))
                     .findFirst()
                     .orElse(null);
         }
-        List<World> worlds = new ArrayList<World>();        @Override
+
+        protected void addPlayer(Player player) {
+            players.add(player);
+        }
+
+        @Override
         public List<World> getWorlds() {
             return new ArrayList<World>(worlds);
         }
 
-        protected void addPlayer(Player player) {
-            players.add(player);
-        }        @Override
+
+
+        @Override
         public boolean unloadWorld(String worldName) {
             World w = getWorld(worldName);
 
@@ -155,7 +172,6 @@ public class TestEntityFactory extends EntityFactory {
                     .findFirst()
                     .orElse(null);
         }
-
 
 
         @Override
@@ -202,7 +218,6 @@ public class TestEntityFactory extends EntityFactory {
             };
             t.start();
         }
-
 
 
     }
