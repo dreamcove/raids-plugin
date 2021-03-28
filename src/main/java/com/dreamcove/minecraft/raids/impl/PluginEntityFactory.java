@@ -9,6 +9,7 @@ import org.bukkit.Location;
 import org.bukkit.WorldCreator;
 import org.bukkit.entity.Entity;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.scheduler.BukkitRunnable;
 
 import java.io.File;
 import java.util.List;
@@ -48,6 +49,11 @@ public class PluginEntityFactory extends EntityFactory {
         }
 
         org.bukkit.entity.Player player;
+
+        @Override
+        public void sendMessage(String message) {
+            player.sendMessage(message);
+        }
     }
 
     private class PluginWorld implements World {
@@ -117,6 +123,13 @@ public class PluginEntityFactory extends EntityFactory {
         }
 
         @Override
+        public Player getPlayer(UUID uuid) {
+            org.bukkit.entity.Player p = plugin.getServer().getPlayer(uuid);
+
+            return p == null ? null : wrap(p);
+        }
+
+        @Override
         public World createWorld(WorldCreator creator) {
             return new PluginWorld(plugin.getServer().createWorld(creator));
         }
@@ -124,6 +137,29 @@ public class PluginEntityFactory extends EntityFactory {
         @Override
         public File getWorldContainer() {
             return plugin.getServer().getWorldContainer();
+        }
+
+        @Override
+        public void delayRunnable(final Runnable runnable, long ticks) {
+            new BukkitRunnable() {
+
+                @Override
+                public void run() {
+                    runnable.run();
+                }
+            }.runTaskLater(plugin, ticks);
+        }
+
+        @Override
+        public void scheduleRunnable(Runnable runnable, long everyTicks) {
+            new BukkitRunnable() {
+
+                @Override
+                public void run() {
+
+                }
+            }.runTaskTimer(plugin, 0, everyTicks);
+
         }
     }
 

@@ -4,7 +4,7 @@ import org.bukkit.Location;
 
 import java.util.UUID;
 
-public interface Player {
+public interface Player extends MessageReceiver {
 
     String getName();
 

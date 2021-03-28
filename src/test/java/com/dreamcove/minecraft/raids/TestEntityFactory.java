@@ -10,6 +10,7 @@ import org.bukkit.WorldCreator;
 import org.bukkit.entity.Entity;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -52,6 +53,11 @@ public class TestEntityFactory extends EntityFactory {
         private String name;
         private UUID uniqueId = UUID.randomUUID();
         private Location location = new Location(null, 0, 0, 0);
+
+        @Override
+        public void sendMessage(String message) {
+            System.out.println(message);
+        }
     }
 
     class TestWorld implements World {
@@ -133,6 +139,14 @@ public class TestEntityFactory extends EntityFactory {
                     .orElse(null);
         }
 
+        @Override
+        public Player getPlayer(UUID uuid) {
+            return players.stream()
+                    .filter(p -> p.getUniqueId().equals(uuid))
+                    .findFirst()
+                    .orElse(null);
+        }
+
         protected void addPlayer(Player player) {
             players.add(player);
         }
@@ -148,6 +162,38 @@ public class TestEntityFactory extends EntityFactory {
         @Override
         public File getWorldContainer() {
             return new File("test-data");
+        }
+
+        @Override
+        public void delayRunnable(Runnable runnable, long ticks) {
+            Thread t = new Thread() {
+                @Override
+                public void run() {
+                    try {
+                        sleep(1000 * (ticks / 20));
+                        runnable.run();
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+            };
+            t.start();
+        }
+
+        @Override
+        public void scheduleRunnable(Runnable runnable, long everyTicks) {
+            Thread t = new Thread() {
+                @Override
+                public void run() {
+                    try {
+                        sleep(1000 * (everyTicks / 20));
+                        runnable.run();
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+            };
+            t.start();
         }
 
         List<Player> players = new ArrayList<Player>();

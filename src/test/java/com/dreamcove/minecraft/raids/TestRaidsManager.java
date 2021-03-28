@@ -39,7 +39,7 @@ public class TestRaidsManager {
             }
         };
 
-        manager = new RaidsManager(file, null);
+        manager = new RaidsManager(null);
         EntityFactory.setInstance(new TestEntityFactory());
 
         TestEntityFactory.TestServer server = (TestEntityFactory.TestServer) EntityFactory.getInstance().getServer();
