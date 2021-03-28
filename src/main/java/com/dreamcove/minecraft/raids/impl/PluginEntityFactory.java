@@ -9,6 +9,7 @@ import org.bukkit.Location;
 import org.bukkit.WorldCreator;
 import org.bukkit.entity.Entity;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.scheduler.BukkitRunnable;
 
 import java.io.File;
 import java.util.List;
@@ -17,7 +18,25 @@ import java.util.stream.Collectors;
 
 public class PluginEntityFactory extends EntityFactory {
 
+    private final JavaPlugin plugin;
+
+    public PluginEntityFactory(JavaPlugin plugin) {
+        this.plugin = plugin;
+    }
+
+    @Override
+    public Server getServer() {
+        return new PluginServer();
+    }
+
+    @Override
+    public Player wrap(org.bukkit.entity.Player player) {
+        return new PluginPlayer(player);
+    }
+
     private class PluginPlayer implements Player {
+        org.bukkit.entity.Player player;
+
         PluginPlayer(org.bukkit.entity.Player player) {
             this.player = player;
         }
@@ -47,10 +66,15 @@ public class PluginEntityFactory extends EntityFactory {
             return new PluginWorld(player.getWorld());
         }
 
-        org.bukkit.entity.Player player;
+        @Override
+        public void sendMessage(String message) {
+            player.sendMessage(message);
+        }
     }
 
     private class PluginWorld implements World {
+        private final org.bukkit.World world;
+
         PluginWorld(org.bukkit.World world) {
             this.world = world;
         }
@@ -85,8 +109,6 @@ public class PluginEntityFactory extends EntityFactory {
         public void setDifficulty(Difficulty difficulty) {
             world.setDifficulty(difficulty);
         }
-
-        private org.bukkit.World world;
     }
 
     private class PluginServer implements Server {
@@ -117,6 +139,13 @@ public class PluginEntityFactory extends EntityFactory {
         }
 
         @Override
+        public Player getPlayer(UUID uuid) {
+            org.bukkit.entity.Player p = plugin.getServer().getPlayer(uuid);
+
+            return p == null ? null : wrap(p);
+        }
+
+        @Override
         public World createWorld(WorldCreator creator) {
             return new PluginWorld(plugin.getServer().createWorld(creator));
         }
@@ -125,21 +154,28 @@ public class PluginEntityFactory extends EntityFactory {
         public File getWorldContainer() {
             return plugin.getServer().getWorldContainer();
         }
-    }
 
-    public PluginEntityFactory(JavaPlugin plugin) {
-        this.plugin = plugin;
-    }
+        @Override
+        public void delayRunnable(final Runnable runnable, long ticks) {
+            new BukkitRunnable() {
 
-    @Override
-    public Server getServer() {
-        return new PluginServer();
-    }
+                @Override
+                public void run() {
+                    runnable.run();
+                }
+            }.runTaskLater(plugin, ticks);
+        }
 
-    @Override
-    public Player wrap(org.bukkit.entity.Player player) {
-        return new PluginPlayer(player);
-    }
+        @Override
+        public void scheduleRunnable(Runnable runnable, long everyTicks) {
+            new BukkitRunnable() {
 
-    private JavaPlugin plugin;
+                @Override
+                public void run() {
+
+                }
+            }.runTaskTimer(plugin, 0, everyTicks);
+
+        }
+    }
 }

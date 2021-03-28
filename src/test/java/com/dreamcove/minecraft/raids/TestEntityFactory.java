@@ -14,24 +14,46 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
+import java.util.logging.Logger;
 
 public class TestEntityFactory extends EntityFactory {
 
+    private final TestServer server = new TestServer();
+
+    @Override
+    public Server getServer() {
+        return server;
+    }
+
+    @Override
+    public Player wrap(org.bukkit.entity.Player player) {
+        return null;
+    }
+
     public static class TestPlayer implements Player {
+
+        private final String name;
+        private final UUID uniqueId = UUID.randomUUID();
+        private Location location = new Location(null, 0, 0, 0);
+        private World world;
 
         public TestPlayer(String name) {
             this.name = name;
         }
 
         @Override
-        public UUID getUniqueId() {
-            return uniqueId;
+        public void sendMessage(String message) {
+            Logger.getLogger("Player-" + getName()).info(message);
         }
 
         @Override
         public String getName() {
             return name;
+        }
+
+        @Override
+        public UUID getUniqueId() {
+            return uniqueId;
         }
 
         @Override
@@ -46,43 +68,54 @@ public class TestEntityFactory extends EntityFactory {
 
         @Override
         public World getWorld() {
-            return null;
+            return world;
         }
 
-        private String name;
-        private UUID uniqueId = UUID.randomUUID();
-        private Location location = new Location(null, 0, 0, 0);
+        public void setWorld(World world) {
+            this.world = world;
+        }
     }
 
     class TestWorld implements World {
 
+        private final String name;
+        private final List<Player> players = new ArrayList<>();
+        private Difficulty difficulty;
+
         public TestWorld(String name) {
             this.name = name;
-        }
-
-        @Override
+        }        @Override
         public String getName() {
             return name;
         }
+
+        public void addPlayer(Player player) {
+            players.add(player);
+        }
+
+        public void clearPlayers() {
+            players.clear();
+        }
+
+
 
         @Override
         public File getWorldFolder() {
             return new File("test-data", getName());
         }
 
+
         @Override
         public Location getSpawnLocation() {
-            return new Location(null, 0, 0, 0);
+            return new Location(null, 10, 10, 10);
         }
+
 
         @Override
         public List<Player> getPlayers() {
             return players;
         }
 
-        public void addPlayer(Player player) {
-            players.add(player);
-        }
 
         @Override
         public List<Entity> getEntities() {
@@ -94,14 +127,17 @@ public class TestEntityFactory extends EntityFactory {
             this.difficulty = difficulty;
         }
 
-        private String name;
-        private Difficulty difficulty;
-        private List<Player> players = new ArrayList<>();
+
     }
 
     class TestServer implements Server {
 
-        @Override
+        List<Player> players = new ArrayList<Player>();
+        List<World> worlds = new ArrayList<World>();
+
+        protected void addPlayer(Player player) {
+            players.add(player);
+        }        @Override
         public World getWorld(String name) {
             return getWorlds().stream()
                     .filter(w -> w.getName().equals(name))
@@ -109,10 +145,13 @@ public class TestEntityFactory extends EntityFactory {
                     .orElse(null);
         }
 
+
+
         @Override
         public List<World> getWorlds() {
             return new ArrayList<World>(worlds);
         }
+
 
         @Override
         public boolean unloadWorld(String worldName) {
@@ -133,9 +172,14 @@ public class TestEntityFactory extends EntityFactory {
                     .orElse(null);
         }
 
-        protected void addPlayer(Player player) {
-            players.add(player);
+        @Override
+        public Player getPlayer(UUID uuid) {
+            return players.stream()
+                    .filter(p -> p.getUniqueId().equals(uuid))
+                    .findFirst()
+                    .orElse(null);
         }
+
 
         @Override
         public World createWorld(WorldCreator creator) {
@@ -150,19 +194,38 @@ public class TestEntityFactory extends EntityFactory {
             return new File("test-data");
         }
 
-        List<Player> players = new ArrayList<Player>();
-        List<World> worlds = new ArrayList<World>();
-    }
+        @Override
+        public void delayRunnable(Runnable runnable, long ticks) {
+            Thread t = new Thread() {
+                @Override
+                public void run() {
+                    try {
+                        sleep(1000 * (ticks / 20));
+                        runnable.run();
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+            };
+            t.start();
+        }
 
-    @Override
-    public Server getServer() {
-        return server;
-    }
+        @Override
+        public void scheduleRunnable(Runnable runnable, long everyTicks) {
+            Thread t = new Thread() {
+                @Override
+                public void run() {
+                    try {
+                        sleep(1000 * (everyTicks / 20));
+                        runnable.run();
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+            };
+            t.start();
+        }
 
-    @Override
-    public Player wrap(org.bukkit.entity.Player player) {
-        return null;
-    }
 
-    private TestServer server = new TestServer();
+    }
 }

@@ -4,6 +4,7 @@ import org.bukkit.WorldCreator;
 
 import java.io.File;
 import java.util.List;
+import java.util.UUID;
 
 public interface Server {
     World getWorld(String name);
@@ -14,7 +15,13 @@ public interface Server {
 
     Player getPlayer(String name);
 
+    Player getPlayer(UUID uuid);
+
     World createWorld(WorldCreator creator);
 
     File getWorldContainer();
+
+    void delayRunnable(Runnable runnable, long ticks);
+
+    void scheduleRunnable(Runnable runnable, long everyTicks);
 }

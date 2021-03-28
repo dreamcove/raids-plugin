@@ -4,13 +4,7 @@ import java.util.List;
 import java.util.UUID;
 
 public abstract class PartyFactory {
-    public abstract boolean arePartiesEnabled();
-
-    public abstract Party getParty(UUID partyId);
-
-    public abstract List<Party> getOnlineParties();
-
-    public abstract UUID getPartyForPlayer(UUID playerId);
+    private static PartyFactory instance;
 
     public static PartyFactory getInstance() {
         return instance;
@@ -20,5 +14,11 @@ public abstract class PartyFactory {
         instance = pInstance;
     }
 
-    private static PartyFactory instance;
+    public abstract boolean arePartiesEnabled();
+
+    public abstract Party getParty(UUID partyId);
+
+    public abstract List<Party> getOnlineParties();
+
+    public abstract UUID getPartyForPlayer(UUID playerId);
 }
