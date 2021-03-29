@@ -280,6 +280,11 @@ public class TestRaidsManager {
     }
 
     @Test
+    public void testCommandHelp() {
+        Assertions.assertTrue(manager.processCommand(player1, "raids", Collections.singletonList("help"), allPerms));
+    }
+
+    @Test
     public void testCommandExit() {
         Location loc1 = player1.getLocation();
         Location loc2 = player2.getLocation();
