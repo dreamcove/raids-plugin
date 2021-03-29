@@ -60,19 +60,19 @@ public class TestRaidsManager {
     public static void unload() {
         // Test shutdown
         Assertions.assertNotEquals(0, manager.getActiveRaids().size());
-        Assertions.assertNotEquals(0, EntityFactory.getInstance().getServer().getWorldContainer().listFiles().length);
+        Assertions.assertTrue(EntityFactory.getInstance().getServer().getWorldContainer().listFiles().length > 1);
 
         manager.shutdown();
 
         Assertions.assertEquals(0, manager.getActiveRaids().size());
-        Assertions.assertEquals(0, EntityFactory.getInstance().getServer().getWorldContainer().listFiles().length);
+        Assertions.assertEquals(1, EntityFactory.getInstance().getServer().getWorldContainer().listFiles().length);
     }
 
     @Test
     public void testHelp() {
         Assertions.assertEquals(0, manager.getHelp(new ArrayList<>()).size());
 
-        Assertions.assertEquals(5, manager.getHelp(allPerms).size());
+        Assertions.assertEquals(6, manager.getHelp(allPerms).size());
     }
 
     @Test
@@ -303,5 +303,36 @@ public class TestRaidsManager {
         }
 
         Assertions.assertFalse(manager.getActiveRaids().contains(world));
+    }
+
+    @Test
+    public void testCommandPackage() throws IOException {
+        // Create a temporary world
+        File worldDir = new File(EntityFactory.getInstance().getServer().getWorldContainer(), "temp");
+        File childDir = new File(worldDir, "child");
+        childDir.mkdirs();
+        File testFile = new File(childDir, "test.txt");
+
+        FileOutputStream fos = null;
+        try {
+            fos = new FileOutputStream(testFile);
+            fos.write(UUID.randomUUID().toString().getBytes());
+        } finally {
+            if (fos != null) {
+                try {
+                    fos.close();
+                } catch (IOException e) {
+                }
+            }
+        }
+
+        WorldCreator creator = new WorldCreator("temp");
+        World w = EntityFactory.getInstance().getServer().createWorld(creator);
+
+        Assertions.assertFalse(manager.getAvailableDungeons().contains("new-dungeon"));
+
+        Assertions.assertTrue(manager.processCommand(player2, "raids", Arrays.asList("package", "temp", "new-dungeon"), allPerms));
+
+        Assertions.assertTrue(manager.getAvailableDungeons().contains("new-dungeon"));
     }
 }

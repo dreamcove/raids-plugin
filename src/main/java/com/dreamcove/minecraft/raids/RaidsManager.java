@@ -18,6 +18,7 @@ import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
+import java.util.zip.ZipOutputStream;
 
 /**
  * RaidsManager handles the logic around the management of the raid.
@@ -33,22 +34,19 @@ public class RaidsManager {
     public static final String CMD_END = "end";
     public static final String CMD_EXIT = "exit";
     public static final String CMD_HELP = "help";
+    public static final String CMD_PACKAGE = "package";
     public static final List<String> ALL_COMMANDS = Arrays.asList(
             CMD_RELOAD,
             CMD_START,
             CMD_CANCEL,
             CMD_END,
             CMD_EXIT,
+            CMD_PACKAGE,
             CMD_HELP
     );
     private final Map<UUID, String> queuedParties = Collections.synchronizedMap(new HashMap<>());
     private final Map<UUID, Location> lastLocation = Collections.synchronizedMap(new HashMap<>());
     private final URL configFile;
-
-    public File getDataDirectory() {
-        return dataDirectory;
-    }
-
     private final File dataDirectory;
     private Logger logger;
     private RaidsConfig raidsConfig;
@@ -126,10 +124,78 @@ public class RaidsManager {
         return logger;
     }
 
+    public static String getPermission(String command) {
+        return "raids." + command;
+    }
+
+    private void packageFile(ZipOutputStream zos, File file, String entryName) throws IOException {
+        if (file.isDirectory()) {
+            zos.putNextEntry(new ZipEntry(entryName + "/"));
+
+            for (File f : Objects.requireNonNull(file.listFiles())) {
+                packageFile(zos, f, entryName + "/" + f.getName());
+            }
+        } else {
+            zos.putNextEntry(new ZipEntry(entryName));
+
+            FileInputStream fis = null;
+
+            try {
+                fis = new FileInputStream(file);
+
+                byte[] buffer = new byte[1024];
+                int read;
+
+                while ((read = fis.read(buffer)) > 0) {
+                    zos.write(buffer, 0, read);
+                }
+
+                zos.closeEntry();
+            } finally {
+                if (fis != null) {
+                    try {
+                        fis.close();
+                    } catch (IOException e) {
+                    }
+                }
+            }
+        }
+    }
+
+    private void packageWorld(String worldName, String dungeonName, boolean forceUpdate) throws Exception {
+        World w = EntityFactory.getInstance().getServer().getWorld(worldName);
+
+        if (w == null) {
+            throw new Exception("World " + worldName + " does not exist");
+        }
+
+        if (getAvailableDungeons().contains(dungeonName) && !forceUpdate) {
+            throw new Exception("Dungeon " + dungeonName + " already exists");
+        }
+
+        ZipOutputStream zos = null;
+
+        try {
+            File dungeonFile = new File(getDungeonDirectory(), dungeonName + ".zip");
+            zos = new ZipOutputStream(new FileOutputStream(dungeonFile));
+
+            for (File f : Objects.requireNonNull(w.getWorldFolder().listFiles())) {
+                packageFile(zos, f, f.getName());
+            }
+        } finally {
+            if (zos != null) {
+                try {
+                    zos.close();
+                } catch (Throwable t) {
+                }
+            }
+        }
+    }
+
     public void shutdown() {
         running = false;
 
-        getActiveRaids().stream().forEach(w -> {
+        getActiveRaids().forEach(w -> {
             w.getPlayers().forEach(p -> {
                 if (getLastLocation(p) != null) {
                     p
@@ -173,6 +239,10 @@ public class RaidsManager {
             result.add("/raids exit - Exit the raid (just you)");
         }
 
+        if (perms.contains(getPermission(CMD_PACKAGE))) {
+            result.add("/raids package <world> <dungeon> [-f] - Package a world as dungeon level");
+        }
+
         if (perms.contains(getPermission(CMD_RELOAD))) {
             result.add("/raids reload - Reload config for plugin");
         }
@@ -204,16 +274,21 @@ public class RaidsManager {
                 if (perms.contains(getPermission(CMD_HELP))) {
                     result.add(CMD_HELP);
                 }
+                if (perms.contains(getPermission(CMD_PACKAGE))) {
+                    result.add(CMD_PACKAGE);
+                }
             } else if (args.size() == 2 && args.get(0).equals(CMD_START) && perms.contains(getPermission(CMD_START))) {
                 result.addAll(getAvailableRaids());
+            } else if (args.size() == 2 && args.get(0).equals(CMD_PACKAGE) && perms.contains(getPermission(CMD_PACKAGE))) {
+                result.addAll(EntityFactory.getInstance().getServer().getWorlds().stream()
+                        .map(World::getName)
+                        .filter(n -> !n.startsWith(getRaidsConfig().getRaidWorldPrefix()))
+                        .collect(Collectors.toList())
+                );
             }
         }
 
         return result;
-    }
-
-    public static String getPermission(String command) {
-        return "raids." + command;
     }
 
     public List<String> getAvailableRaids() {
@@ -290,47 +365,6 @@ public class RaidsManager {
         return EntityFactory.getInstance().getServer();
     }
 
-    private void copyFile(File fromFile, File toFile) throws IOException {
-        if (fromFile.isDirectory()) {
-            toFile.mkdirs();
-
-            File[] files = fromFile.listFiles();
-
-            assert files != null;
-            for (File file : files) {
-                copyFile(file, new File(toFile, file.getName()));
-            }
-        } else if (!fromFile.getName().equals("uid.dat")) {
-            byte[] buffer = new byte[8192];
-            int read;
-
-            InputStream is = null;
-            OutputStream os = null;
-
-            try {
-                is = new FileInputStream(fromFile);
-                try {
-                    os = new FileOutputStream(toFile);
-
-                    do {
-                        read = is.read(buffer);
-                        if (read > 0) {
-                            os.write(buffer, 0, read);
-                        }
-                    } while (read > 0);
-                } finally {
-                    if (os != null) {
-                        os.close();
-                    }
-                }
-            } finally {
-                if (is != null) {
-                    is.close();
-                }
-            }
-        }
-    }
-
     public boolean cancelRaid(UUID partyId) {
         if (isPartyQueued(partyId)) {
             dequeueParty(partyId);
@@ -382,6 +416,23 @@ public class RaidsManager {
                             for (String help : getHelp(perms)) {
                                 receiver.sendMessage(help);
                             }
+                            break;
+                        case CMD_PACKAGE:
+                            if (args.size() >= 3) {
+                                String worldName = args.get(1);
+                                String dungeonName = args.get(2);
+                                boolean forceUpdate = (args.size() > 3 && args.get(3).equals("-f"));
+
+                                try {
+                                    packageWorld(worldName, dungeonName, forceUpdate);
+                                    receiver.sendMessage("World " + worldName + " has been packaged as dungeon " + dungeonName);
+                                } catch (Exception e) {
+                                    receiver.sendMessage(e.getMessage());
+                                }
+                            } else {
+                                receiver.sendMessage("/raids start requires 2 arguments");
+                            }
+                            break;
                         case CMD_START:
                             if (args.size() == 2) {
                                 // Find Party
@@ -407,7 +458,7 @@ public class RaidsManager {
                                     }
                                 }
                             } else {
-                                receiver.sendMessage("/raids start requires 2 arguments");
+                                receiver.sendMessage("/raids start requires 1 arguments");
                             }
                             break;
                         case CMD_CANCEL:
@@ -465,24 +516,6 @@ public class RaidsManager {
                 .collect(Collectors.toList());
     }
 
-    class RaidScrubber implements Runnable {
-        public void run() {
-            if (running) {
-                cleanRaids();
-                startScrubber();
-            }
-        }
-    }
-
-    private File getDungeonDirectory() {
-        File result = new File(getDataDirectory(), "dungeons");
-        if (!result.exists()) {
-            result.mkdirs();
-        }
-
-        return result;
-    }
-
     private World setupRaidWorld(Raid raid) throws IOException {
         String filename = raid.getDungeonName() + ".zip";
 
@@ -511,11 +544,15 @@ public class RaidsManager {
                 }
             } finally {
                 try {
-                    os.close();
+                    if (os != null) {
+                        os.close();
+                    }
                 } catch (IOException e) {
                 }
                 try {
-                    is.close();
+                    if (is != null) {
+                        is.close();
+                    }
                 } catch (IOException e) {
                 }
             }
@@ -524,40 +561,50 @@ public class RaidsManager {
         String worldName = getRaidsConfig().getRaidWorldPrefix() + "_" + UUID.randomUUID().toString();
         File worldDir = new File(getServer().getWorldContainer(), worldName);
 
-        ZipInputStream zis = new ZipInputStream(new FileInputStream(dungeonFile));
-        ZipEntry entry;
+        ZipInputStream zis = null;
 
-        while ((entry = zis.getNextEntry()) != null) {
-            if (!entry.getName().endsWith("uid.dat") && !entry.getName().endsWith("session.lock")) {
-                File file = new File(worldDir, entry.getName());
-                if (entry.isDirectory()) {
-                    file.mkdirs();
-                } else {
-                    file.getParentFile().mkdirs();
+        try {
+            zis = new ZipInputStream(new FileInputStream(dungeonFile));
 
-                    FileOutputStream fos = null;
-                    try {
-                        fos = new FileOutputStream(file);
-                        byte[] buffer = new byte[1024];
-                        int read;
+            ZipEntry entry;
 
-                        while ((read = zis.read(buffer)) > 0) {
-                            fos.write(buffer, 0, read);
-                        }
-                    } finally {
-                        if (fos != null) {
-                            try {
-                                fos.close();
-                            } catch (IOException e) {
+            while ((entry = zis.getNextEntry()) != null) {
+                if (!entry.getName().endsWith("uid.dat") && !entry.getName().endsWith("session.lock")) {
+                    File file = new File(worldDir, entry.getName());
+                    if (entry.isDirectory()) {
+                        file.mkdirs();
+                    } else {
+                        file.getParentFile().mkdirs();
+
+                        FileOutputStream fos = null;
+                        try {
+                            fos = new FileOutputStream(file);
+                            byte[] buffer = new byte[1024];
+                            int read;
+
+                            while ((read = zis.read(buffer)) > 0) {
+                                fos.write(buffer, 0, read);
+                            }
+                        } finally {
+                            if (fos != null) {
+                                try {
+                                    fos.close();
+                                } catch (IOException e) {
+                                }
                             }
                         }
                     }
                 }
+                zis.closeEntry();
             }
-            zis.closeEntry();
+        } finally {
+            if (zis != null) {
+                try {
+                    zis.close();
+                } catch (IOException e) {
+                }
+            }
         }
-
-        zis.close();
 
         WorldCreator creator = new WorldCreator(worldName);
         World world = EntityFactory.getInstance().getServer().createWorld(creator);
@@ -570,6 +617,36 @@ public class RaidsManager {
         world.getEntities().forEach(Entity::remove);
 
         return world;
+    }
+
+    public List<String> getAvailableDungeons() {
+        return Arrays.stream(Objects.requireNonNull(getDungeonDirectory().listFiles()))
+                .map(File::getName)
+                .filter(n -> n.endsWith(".zip"))
+                .map(n -> n.substring(0, n.lastIndexOf(".")))
+                .collect(Collectors.toList());
+    }
+
+    private File getDungeonDirectory() {
+        File result = new File(getDataDirectory(), "dungeons");
+        if (!result.exists()) {
+            result.mkdirs();
+        }
+
+        return result;
+    }
+
+    public File getDataDirectory() {
+        return dataDirectory;
+    }
+
+    class RaidScrubber implements Runnable {
+        public void run() {
+            if (running) {
+                cleanRaids();
+                startScrubber();
+            }
+        }
     }
 
     class StartRaidRunnable implements Runnable {

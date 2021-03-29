@@ -11,15 +11,6 @@ import java.util.logging.Logger;
 public class RaidsConfig {
     private final List<Raid> raids = Collections.synchronizedList(new ArrayList<>());
     private int cleanCycle;
-
-    public String getRaidWorldPrefix() {
-        return raidWorldPrefix;
-    }
-
-    public void setRaidWorldPrefix(String raidWorldPrefix) {
-        this.raidWorldPrefix = raidWorldPrefix;
-    }
-
     private String raidWorldPrefix;
 
     public static RaidsConfig from(FileConfiguration fileConfig) {
@@ -54,6 +45,14 @@ public class RaidsConfig {
 
     public void addRaid(Raid raid) {
         raids.add(raid);
+    }
+
+    public String getRaidWorldPrefix() {
+        return raidWorldPrefix;
+    }
+
+    public void setRaidWorldPrefix(String raidWorldPrefix) {
+        this.raidWorldPrefix = raidWorldPrefix;
     }
 
     public int getCleanCycle() {
