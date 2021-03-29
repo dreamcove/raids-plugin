@@ -29,10 +29,10 @@ public class TestRaidsManager {
     public static void load() {
         allPerms = RaidsManager.ALL_COMMANDS.stream().map(RaidsManager::getPermission).collect(Collectors.toList());
 
-        manager = new RaidsManager(TestRaidsManager.class.getClassLoader().getResource("test-config.yml"), null);
-
         EntityFactory.setInstance(new TestEntityFactory());
         PartyFactory.setInstance(new TestPartyFactory());
+
+        manager = new RaidsManager(TestRaidsManager.class.getClassLoader().getResource("test-config.yml"), null);
 
         player1 = new TestEntityFactory.TestPlayer(UUID.randomUUID().toString());
         player2 = new TestEntityFactory.TestPlayer(UUID.randomUUID().toString());
@@ -64,6 +64,15 @@ public class TestRaidsManager {
 
     @AfterAll
     public static void unload() {
+        // Test shutdown
+        Assertions.assertNotEquals(0, manager.getActiveRaids().size());
+
+        manager.shutdown();
+
+        Assertions.assertEquals(0, manager.getActiveRaids().size());
+
+        Assertions.assertEquals(2, EntityFactory.getInstance().getServer().getWorldContainer().listFiles().length);
+
         try {
             manager.deleteFile(EntityFactory.getInstance().getServer().getWorldContainer());
         } catch (IOException e) {

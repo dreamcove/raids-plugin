@@ -10,15 +10,19 @@ import java.util.logging.Logger;
 
 public class RaidsConfig {
     private final List<Raid> raids = Collections.synchronizedList(new ArrayList<>());
+    private int cleanCycle;
 
     public static RaidsConfig from(FileConfiguration fileConfig) {
         RaidsConfig result = new RaidsConfig();
+
+        result.setCleanCycle(fileConfig.getInt("clean-cycle", 15));
 
         ConfigurationSection section = fileConfig.getConfigurationSection("raids");
 
         for (String raidName : section.getKeys(false)) {
             try {
                 ConfigurationSection raidSection = section.getConfigurationSection(raidName);
+
                 Raid raid = new Raid();
 
                 raid.setName(raidName);
@@ -39,6 +43,14 @@ public class RaidsConfig {
 
     public void addRaid(Raid raid) {
         raids.add(raid);
+    }
+
+    public int getCleanCycle() {
+        return cleanCycle;
+    }
+
+    public void setCleanCycle(int cleanCycle) {
+        this.cleanCycle = cleanCycle;
     }
 
     public List<Raid> getRaids() {

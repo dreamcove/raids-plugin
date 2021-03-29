@@ -44,11 +44,95 @@ public class RaidsManager {
     private final URL configFile;
     private Logger logger;
     private RaidsConfig raidsConfig;
+    private boolean running;
 
     // Constructors
     public RaidsManager(URL configFile, Logger logger) {
         this.logger = logger;
         this.configFile = configFile;
+        initialize();
+    }
+
+    private void initialize() {
+        running = true;
+        startScrubber();
+    }
+
+    private void startScrubber() {
+        EntityFactory.getInstance().getServer().delayRunnable(new RaidScrubber(), getRaidsConfig().getCleanCycle() * 20L);
+    }
+
+    public synchronized RaidsConfig getRaidsConfig() {
+        if (raidsConfig == null) {
+            InputStream is = null;
+            try {
+                is = configFile.openStream();
+                BufferedReader br = new BufferedReader(new InputStreamReader(is));
+
+                StringBuilder result = new StringBuilder();
+                String line;
+
+                while ((line = br.readLine()) != null) {
+                    result.append(line).append("\n");
+                }
+
+                br.close();
+
+                YamlConfiguration yamlConfig = new YamlConfiguration();
+                yamlConfig.loadFromString(result.toString());
+
+                raidsConfig = RaidsConfig.from(yamlConfig);
+            } catch (Exception ioExc) {
+                getLogger().severe("Error loading configuration");
+                getLogger().throwing("RaidsManager", "getRaidsConfig", ioExc);
+            } finally {
+                if (is != null) {
+                    try {
+                        is.close();
+                    } catch (IOException ioExc) {
+                        ioExc.printStackTrace();
+                    }
+                }
+            }
+
+            if (raidsConfig == null) {
+                // Default to an empty config on error
+                raidsConfig = new RaidsConfig();
+            }
+        }
+
+        return raidsConfig;
+    }
+
+    private Logger getLogger() {
+        if (logger == null) {
+            logger = Logger.getLogger(RaidsManager.class.getName());
+        }
+
+        return logger;
+    }
+
+    public void shutdown() {
+        running = false;
+
+        getActiveRaids().stream().forEach(w -> {
+            w.getPlayers().forEach(p -> {
+                if (getLastLocation(p) != null) {
+                    p
+                            .getWorld()
+                            .getPlayers()
+                            .forEach(this::returnLastLocation);
+                }
+            });
+            try {
+                removeWorld(w);
+            } catch (IOException e) {
+                getLogger().severe("Error removing world " + w.getName());
+                getLogger().throwing("RaidsManager", "shutdown", e);
+            }
+        });
+
+        cleanRaids();
     }
 
     public void reload() {
@@ -120,56 +204,6 @@ public class RaidsManager {
 
     public List<String> getAvailableRaids() {
         return getRaidsConfig().getRaids().stream().map(Raid::getName).collect(Collectors.toList());
-    }
-
-    public synchronized RaidsConfig getRaidsConfig() {
-        if (raidsConfig == null) {
-            InputStream is = null;
-            try {
-                is = configFile.openStream();
-                BufferedReader br = new BufferedReader(new InputStreamReader(is));
-
-                StringBuilder result = new StringBuilder();
-                String line;
-
-                while ((line = br.readLine()) != null) {
-                    result.append(line).append("\n");
-                }
-
-                br.close();
-
-                YamlConfiguration yamlConfig = new YamlConfiguration();
-                yamlConfig.loadFromString(result.toString());
-
-                raidsConfig = RaidsConfig.from(yamlConfig);
-            } catch (Exception ioExc) {
-                getLogger().severe("Error loading configuration");
-                getLogger().throwing("RaidsManager", "getRaidsConfig", ioExc);
-            } finally {
-                if (is != null) {
-                    try {
-                        is.close();
-                    } catch (IOException ioExc) {
-                        ioExc.printStackTrace();
-                    }
-                }
-            }
-
-            if (raidsConfig == null) {
-                // Default to an empty config on error
-                raidsConfig = new RaidsConfig();
-            }
-        }
-
-        return raidsConfig;
-    }
-
-    private Logger getLogger() {
-        if (logger == null) {
-            logger = Logger.getLogger(RaidsManager.class.getName());
-        }
-
-        return logger;
     }
 
     public void storeLastLocation(Player player) {
@@ -432,6 +466,21 @@ public class RaidsManager {
                 .filter(r -> r.getName().equals(name))
                 .findFirst()
                 .orElse(null);
+    }
+
+    public List<World> getActiveRaids() {
+        return getServer().getWorlds().stream()
+                .filter(w -> w.getName().startsWith("raid_"))
+                .collect(Collectors.toList());
+    }
+
+    class RaidScrubber implements Runnable {
+        public void run() {
+            if (running) {
+                cleanRaids();
+                startScrubber();
+            }
+        }
     }
 
     class StartRaidRunnable implements Runnable {

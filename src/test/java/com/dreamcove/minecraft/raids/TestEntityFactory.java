@@ -92,12 +92,12 @@ public class TestEntityFactory extends EntityFactory {
 
         public void clearPlayers() {
             players.clear();
-        }        @Override
+        }
+
+        @Override
         public String getName() {
             return name;
         }
-
-
 
 
         @Override

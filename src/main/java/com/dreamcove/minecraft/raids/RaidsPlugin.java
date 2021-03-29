@@ -16,7 +16,6 @@ import java.util.stream.Collectors;
 
 public class RaidsPlugin extends JavaPlugin {
 
-
     private RaidsManager manager;
 
     public RaidsPlugin() {
@@ -49,6 +48,11 @@ public class RaidsPlugin extends JavaPlugin {
     }
 
     @Override
+    public void onDisable() {
+        manager.shutdown();
+    }
+
+    @Override
     public void onEnable() {
         super.onEnable();
 
@@ -59,8 +63,6 @@ public class RaidsPlugin extends JavaPlugin {
 
         try {
             manager = new RaidsManager(new File(getDataFolder(), "config.yml").toURI().toURL(), getLogger());
-
-            EntityFactory.getInstance().getServer().scheduleRunnable(() -> manager.cleanRaids(), 60 * 20);
         } catch (Exception exc) {
             getLogger().severe("Error loading config file");
             getLogger().throwing("RaidsPlugin", "onEnable", exc);

@@ -1,3 +1,4 @@
+clean-cycle: 15 # remove empty raids every 15 seconds
 raids:
   example:
     dungeon: template_arena
