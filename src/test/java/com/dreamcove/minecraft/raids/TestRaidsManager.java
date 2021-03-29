@@ -11,6 +11,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -52,9 +53,14 @@ public class TestRaidsManager {
 
 
         File worldDir = new File(server.getWorldContainer(), "template_arena");
-        worldDir.mkdirs();
+        File childDir = new File(worldDir, "child");
+        childDir.mkdirs();
         try {
-            new File(worldDir, "tempfile.txt").createNewFile();
+            File tempFile = new File(childDir, "tempfile.txt");
+            FileOutputStream fos = new FileOutputStream(tempFile);
+            fos.write(UUID.randomUUID().toString().getBytes());
+            fos.close();
+
             new File(worldDir, "uid.dat").createNewFile();
             server.createWorld(new WorldCreator("template_arena"));
         } catch (IOException e) {
@@ -72,12 +78,6 @@ public class TestRaidsManager {
         Assertions.assertEquals(0, manager.getActiveRaids().size());
 
         Assertions.assertEquals(2, EntityFactory.getInstance().getServer().getWorldContainer().listFiles().length);
-
-        try {
-            manager.deleteFile(EntityFactory.getInstance().getServer().getWorldContainer());
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
     }
 
     @Test

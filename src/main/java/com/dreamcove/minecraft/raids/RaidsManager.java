@@ -66,7 +66,7 @@ public class RaidsManager {
         if (raidsConfig == null) {
             InputStream is = null;
             BufferedReader br = null;
-            
+
             try {
                 is = configFile.openStream();
                 br = new BufferedReader(new InputStreamReader(is));
