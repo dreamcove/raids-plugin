@@ -320,4 +320,53 @@ public class TestRaidsManager {
         Assertions.assertEquals(loc1, player1.getLocation());
         Assertions.assertEquals(loc2, player2.getLocation());
     }
+
+    @Test
+    public void testCleanCycle() {
+        Location loc1 = player1.getLocation();
+        Location loc2 = player2.getLocation();
+
+        Assertions.assertTrue(manager.processCommand(player1, "raids", Arrays.asList("start", "arena_1"), allPerms));
+
+        Assertions.assertTrue(manager.isPartyQueued(party1.getId()));
+
+        TestEntityFactory.TestWorld world = (TestEntityFactory.TestWorld) EntityFactory.getInstance().getServer().getWorld(manager.getQueuedWorld(party1.getId()));
+
+        try {
+            Thread.sleep(6 * 1000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        Assertions.assertNotEquals(loc1, player1.getLocation());
+        Assertions.assertNotEquals(loc2, player2.getLocation());
+
+        // Minor nudge for testing purposes
+        player1.setWorld(world);
+        player2.setWorld(world);
+        world.addPlayer(player1);
+        world.addPlayer(player2);
+
+        Assertions.assertTrue(manager.processCommand(player1, "raids", Collections.singletonList("exit"), allPerms));
+
+        Assertions.assertEquals(loc1, player1.getLocation());
+        Assertions.assertNotEquals(loc2, player2.getLocation());
+
+        Assertions.assertTrue(manager.processCommand(player2, "raids", Collections.singletonList("exit"), allPerms));
+
+        Assertions.assertEquals(loc1, player1.getLocation());
+        Assertions.assertEquals(loc2, player2.getLocation());
+
+        Assertions.assertTrue(manager.getActiveRaids().contains(world));
+
+        world.clearPlayers();
+        // Wait 20 seconds for cleanup cycle
+
+        try {
+            Thread.sleep(20000);
+        } catch (Throwable t) {
+        }
+
+        Assertions.assertFalse(manager.getActiveRaids().contains(world));
+    }
 }
