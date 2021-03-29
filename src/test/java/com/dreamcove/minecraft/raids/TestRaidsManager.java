@@ -5,24 +5,18 @@ import com.dreamcove.minecraft.raids.api.PartyFactory;
 import com.dreamcove.minecraft.raids.api.World;
 import org.bukkit.Location;
 import org.bukkit.WorldCreator;
-import org.bukkit.configuration.InvalidConfigurationException;
-import org.bukkit.configuration.file.FileConfiguration;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-import java.io.*;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.UUID;
+import java.io.File;
+import java.io.IOException;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class TestRaidsManager {
     private static RaidsManager manager;
-    private static List<String> allCommands;
     private static List<String> allPerms;
 
     private static TestEntityFactory.TestPlayer player1;
@@ -31,39 +25,12 @@ public class TestRaidsManager {
 
     private static TestPartyFactory.TestParty party1;
 
-    private static FileConfiguration getConfig() throws IOException, InvalidConfigurationException {
-        InputStream is = TestRaidsManager.class.getClassLoader().getResourceAsStream("test-config.yml");
-
-        BufferedReader br = new BufferedReader(new InputStreamReader(is));
-
-        StringBuilder result = new StringBuilder();
-        String line;
-
-        while ((line = br.readLine()) != null) {
-            result.append(line).append("\n");
-        }
-
-        br.close();
-        is.close();
-
-        YamlConfiguration file = new YamlConfiguration();
-        file.loadFromString(result.toString());
-
-        return file;
-    }
-
     @BeforeAll
-    public static void load() throws IOException, InvalidConfigurationException {
-        allCommands = Arrays.asList(
-                RaidsManager.CMD_RELOAD,
-                RaidsManager.CMD_START,
-                RaidsManager.CMD_CANCEL,
-                RaidsManager.CMD_END,
-                RaidsManager.CMD_EXIT
-        );
-        allPerms = allCommands.stream().map(c -> "raids." + c).collect(Collectors.toList());
+    public static void load() {
+        allPerms = RaidsManager.ALL_COMMANDS.stream().map(RaidsManager::getPermission).collect(Collectors.toList());
 
-        manager = new RaidsManager(getConfig(), null);
+        manager = new RaidsManager(TestRaidsManager.class.getClassLoader().getResource("test-config.yml"), null);
+
         EntityFactory.setInstance(new TestEntityFactory());
         PartyFactory.setInstance(new TestPartyFactory());
 
@@ -106,7 +73,7 @@ public class TestRaidsManager {
 
     @Test
     public void testHelp() {
-        Assertions.assertEquals(0, manager.getHelp(Collections.EMPTY_LIST).size());
+        Assertions.assertEquals(0, manager.getHelp(new ArrayList<>()).size());
 
         Assertions.assertEquals(5, manager.getHelp(allPerms).size());
     }
@@ -214,15 +181,13 @@ public class TestRaidsManager {
 
     @Test
     public void testTabComplete() {
-        List<String> allPerms = allCommands.stream().map(p -> "raids." + p).collect(Collectors.toList());
+        List<String> result = manager.getTabComplete("raids", allPerms, Collections.singletonList(""));
 
-        List result = manager.getTabComplete("raids", allPerms, Collections.singletonList(""));
-
-        for (String cmd : allCommands) {
+        for (String cmd : RaidsManager.ALL_COMMANDS) {
             Assertions.assertTrue(result.contains(cmd));
         }
 
-        result = manager.getTabComplete("raids", Collections.EMPTY_LIST, Collections.singletonList(""));
+        result = manager.getTabComplete("raids", new ArrayList<>(), Collections.singletonList(""));
         Assertions.assertEquals(1, result.size());
 
         result = manager.getTabComplete("raids", allPerms, Arrays.asList("start", ""));
@@ -292,6 +257,17 @@ public class TestRaidsManager {
 
         Assertions.assertEquals(loc1, player1.getLocation());
         Assertions.assertEquals(loc2, player2.getLocation());
+    }
+
+    @Test
+    public void testCommandReload() {
+        manager.getRaidsConfig().getRaids().clear();
+
+        Assertions.assertEquals(0, manager.getAvailableRaids().size());
+
+        Assertions.assertTrue(manager.processCommand(player1, "raids", Collections.singletonList("reload"), allPerms));
+
+        Assertions.assertEquals(2, manager.getAvailableRaids().size());
     }
 
     @Test

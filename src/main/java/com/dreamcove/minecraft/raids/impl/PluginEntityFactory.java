@@ -109,6 +109,11 @@ public class PluginEntityFactory extends EntityFactory {
         public void setDifficulty(Difficulty difficulty) {
             world.setDifficulty(difficulty);
         }
+
+        @Override
+        public void removeAllEntities() {
+            world.getEntities().forEach(Entity::remove);
+        }
     }
 
     private class PluginServer implements Server {
@@ -147,7 +152,9 @@ public class PluginEntityFactory extends EntityFactory {
 
         @Override
         public World createWorld(WorldCreator creator) {
-            return new PluginWorld(plugin.getServer().createWorld(creator));
+            World w = new PluginWorld(plugin.getServer().createWorld(creator));
+
+            return w;
         }
 
         @Override
