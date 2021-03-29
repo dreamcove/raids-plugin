@@ -10,8 +10,8 @@ import java.util.logging.Logger;
 
 public class RaidsConfig {
     private final List<Raid> raids = Collections.synchronizedList(new ArrayList<>());
-    private int cleanCycle;
-    private String raidWorldPrefix;
+    private int cleanCycle = 15;
+    private String raidWorldPrefix = "partyraids";
 
     public static RaidsConfig from(FileConfiguration fileConfig) {
         RaidsConfig result = new RaidsConfig();

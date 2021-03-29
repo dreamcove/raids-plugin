@@ -1,4 +1,4 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://maven.apache.org/POM/4.0.0"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
@@ -176,30 +176,6 @@
                 </executions>
             </plugin>
         </plugins>
-
-        <resources>
-
-            <!-- Resources we want to include, e.g. configs or language files -->
-            <resource>
-                <directory>${basedir}/src/main/resources</directory>
-                <filtering>true</filtering>
-
-                <includes>
-                    <include>*</include>
-                    <include>tags/*</include>
-                    <include>languages/*</include>
-                </includes>
-            </resource>
-
-            <!-- We also want to include our LICENSE file -->
-            <resource>
-                <directory>${basedir}</directory>
-
-                <includes>
-                    <include>LICENSE</include>
-                </includes>
-            </resource>
-        </resources>
     </build>
 
 </project>

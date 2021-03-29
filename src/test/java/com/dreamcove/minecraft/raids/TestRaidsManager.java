@@ -35,9 +35,7 @@ public class TestRaidsManager {
 
         File dataDirectory = new File(new File("test-data"), "plugin");
 
-        manager = new RaidsManager(dataDirectory, TestRaidsManager.class.getClassLoader().getResource("test-config.yml"), null);
-
-        manager.deleteFile(new File("test-data"));
+        manager = new RaidsManager(dataDirectory, null);
 
         player1 = new TestEntityFactory.TestPlayer(UUID.randomUUID().toString());
         player2 = new TestEntityFactory.TestPlayer(UUID.randomUUID().toString());
@@ -57,7 +55,7 @@ public class TestRaidsManager {
     }
 
     @AfterAll
-    public static void unload() {
+    public static void unload() throws IOException {
         // Test shutdown
         Assertions.assertNotEquals(0, manager.getActiveRaids().size());
         Assertions.assertTrue(EntityFactory.getInstance().getServer().getWorldContainer().listFiles().length > 1);
@@ -66,6 +64,13 @@ public class TestRaidsManager {
 
         Assertions.assertEquals(0, manager.getActiveRaids().size());
         Assertions.assertEquals(1, EntityFactory.getInstance().getServer().getWorldContainer().listFiles().length);
+
+        File testDirectory = new File("test-data");
+
+        if (testDirectory.exists()) {
+            manager.deleteFile(new File("test-data"));
+        }
+
     }
 
     @Test
@@ -118,9 +123,8 @@ public class TestRaidsManager {
     public void testAvailableRaids() {
         List<String> names = manager.getAvailableRaids();
 
-        Assertions.assertEquals(2, names.size());
-        Assertions.assertTrue(names.contains("arena_1"));
-        Assertions.assertTrue(names.contains("arena_2"));
+        Assertions.assertEquals(1, names.size());
+        Assertions.assertTrue(names.contains("example"));
     }
 
     @Test
@@ -132,7 +136,7 @@ public class TestRaidsManager {
         }
 
         result = manager.getTabComplete("raids", new ArrayList<>(), Collections.singletonList(""));
-        Assertions.assertEquals(1, result.size());
+        Assertions.assertEquals(0, result.size());
 
         result = manager.getTabComplete("raids", allPerms, Arrays.asList("start", ""));
 
@@ -143,7 +147,7 @@ public class TestRaidsManager {
 
     @Test
     public void testCommandStart() {
-        Assertions.assertTrue(manager.processCommand(player1, "raids", Arrays.asList("start", "arena_1"), allPerms));
+        Assertions.assertTrue(manager.processCommand(player1, "raids", Arrays.asList("start", "example"), allPerms));
 
         Assertions.assertTrue(manager.isPartyQueued(party1.getId()));
 
@@ -154,7 +158,7 @@ public class TestRaidsManager {
 
     @Test
     public void testCommandCancel() {
-        Assertions.assertTrue(manager.processCommand(player1, "raids", Arrays.asList("start", "arena_1"), allPerms));
+        Assertions.assertTrue(manager.processCommand(player1, "raids", Arrays.asList("start", "example"), allPerms));
 
         Assertions.assertTrue(manager.isPartyQueued(party1.getId()));
 
@@ -166,7 +170,7 @@ public class TestRaidsManager {
     @Test
     public void testCommandStartWithoutParty() {
         List<World> worlds = EntityFactory.getInstance().getServer().getWorlds();
-        Assertions.assertTrue(manager.processCommand(player3, "raids", Arrays.asList("start", "arena_1"), allPerms));
+        Assertions.assertTrue(manager.processCommand(player3, "raids", Arrays.asList("start", "example"), allPerms));
 
         Assertions.assertEquals(worlds.size(), EntityFactory.getInstance().getServer().getWorlds().size());
     }
@@ -176,7 +180,7 @@ public class TestRaidsManager {
         Location loc1 = player1.getLocation();
         Location loc2 = player2.getLocation();
 
-        Assertions.assertTrue(manager.processCommand(player1, "raids", Arrays.asList("start", "arena_1"), allPerms));
+        Assertions.assertTrue(manager.processCommand(player1, "raids", Arrays.asList("start", "example"), allPerms));
 
         Assertions.assertTrue(manager.isPartyQueued(party1.getId()));
 
@@ -211,7 +215,7 @@ public class TestRaidsManager {
 
         Assertions.assertTrue(manager.processCommand(player1, "raids", Collections.singletonList("reload"), allPerms));
 
-        Assertions.assertEquals(2, manager.getAvailableRaids().size());
+        Assertions.assertEquals(1, manager.getAvailableRaids().size());
     }
 
     @Test
@@ -224,7 +228,7 @@ public class TestRaidsManager {
         Location loc1 = player1.getLocation();
         Location loc2 = player2.getLocation();
 
-        Assertions.assertTrue(manager.processCommand(player1, "raids", Arrays.asList("start", "arena_1"), allPerms));
+        Assertions.assertTrue(manager.processCommand(player1, "raids", Arrays.asList("start", "example"), allPerms));
 
         Assertions.assertTrue(manager.isPartyQueued(party1.getId()));
 
@@ -261,7 +265,7 @@ public class TestRaidsManager {
         Location loc1 = player1.getLocation();
         Location loc2 = player2.getLocation();
 
-        Assertions.assertTrue(manager.processCommand(player1, "raids", Arrays.asList("start", "arena_1"), allPerms));
+        Assertions.assertTrue(manager.processCommand(player1, "raids", Arrays.asList("start", "example"), allPerms));
 
         Assertions.assertTrue(manager.isPartyQueued(party1.getId()));
 

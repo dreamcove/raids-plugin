@@ -2,13 +2,13 @@ clean-cycle: 15 # remove empty raids every 15 seconds
 raid-world-prefix: partyraids
 raids:
   example:
-    dungeon: template_arena
+    dungeon: arena
     spawn-location: 0, 0, 0
     start-criteria:
       minimum-party-size: 1
       minimum-rank: 1
       average-rank: 1
-    join-in: 15 # number of seconds for the online to join
+    join-in: 5 # number of seconds for the online to join
     on-start:
       clear-mobs: true
       mobs:

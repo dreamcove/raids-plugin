@@ -6,6 +6,7 @@ import com.dreamcove.minecraft.raids.config.RaidsConfig;
 import org.bukkit.Difficulty;
 import org.bukkit.Location;
 import org.bukkit.WorldCreator;
+import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Entity;
 
@@ -46,27 +47,33 @@ public class RaidsManager {
     );
     private final Map<UUID, String> queuedParties = Collections.synchronizedMap(new HashMap<>());
     private final Map<UUID, Location> lastLocation = Collections.synchronizedMap(new HashMap<>());
-    private final URL configFile;
     private final File dataDirectory;
     private Logger logger;
     private RaidsConfig raidsConfig;
-    private boolean running;
 
     // Constructors
-    public RaidsManager(File dataDirectory, URL configFile, Logger logger) {
+    public RaidsManager(File dataDirectory, Logger logger) {
         this.dataDirectory = dataDirectory;
         this.logger = logger;
-        this.configFile = configFile;
         initialize();
     }
 
+    public static String getPermission(String command) {
+        return "raids." + command;
+    }
+
     private void initialize() {
-        running = true;
+        try {
+            loadDefaults();
+        } catch (IOException | InvalidConfigurationException exc) {
+            getLogger().warning("Error loading defaults: " + exc);
+        }
+
         startScrubber();
     }
 
     private void startScrubber() {
-        EntityFactory.getInstance().getServer().delayRunnable(new RaidScrubber(), getRaidsConfig().getCleanCycle() * 20L);
+        EntityFactory.getInstance().getServer().scheduleRunnable(() -> cleanRaids(), getRaidsConfig().getCleanCycle() * 20L);
     }
 
     public synchronized RaidsConfig getRaidsConfig() {
@@ -74,8 +81,10 @@ public class RaidsManager {
             InputStream is = null;
             BufferedReader br = null;
 
+            File file = new File(getDataDirectory(), "config.yml");
+
             try {
-                is = configFile.openStream();
+                is = new FileInputStream(file);
                 br = new BufferedReader(new InputStreamReader(is));
 
                 StringBuilder result = new StringBuilder();
@@ -122,10 +131,6 @@ public class RaidsManager {
         }
 
         return logger;
-    }
-
-    public static String getPermission(String command) {
-        return "raids." + command;
     }
 
     private void packageFile(ZipOutputStream zos, File file, String entryName) throws IOException {
@@ -193,8 +198,6 @@ public class RaidsManager {
     }
 
     public void shutdown() {
-        running = false;
-
         getActiveRaids().forEach(w -> {
             w.getPlayers().forEach(p -> {
                 if (getLastLocation(p) != null) {
@@ -255,7 +258,6 @@ public class RaidsManager {
 
         if (command.equals("raids")) {
             if (args.size() == 1) {
-                result.add("CMD_HELP");
                 if (perms.contains(getPermission(CMD_START))) {
                     result.add(CMD_START);
                 }
@@ -388,7 +390,7 @@ public class RaidsManager {
             party.broadcastMessage("Use /raids cancel to abort.");
         }
 
-        EntityFactory.getInstance().getServer().delayRunnable(new StartRaidRunnable(partyId), (long) raid.getJoinIn() * 20);
+        EntityFactory.getInstance().getServer().scheduleRunnable(new StartRaidRunnable(partyId), (long) raid.getJoinIn() * 20);
     }
 
     public boolean processCommand(MessageReceiver receiver, String command, List<String> args, List<String> perms) {
@@ -640,12 +642,54 @@ public class RaidsManager {
         return dataDirectory;
     }
 
-    class RaidScrubber implements Runnable {
-        public void run() {
-            if (running) {
-                cleanRaids();
-                startScrubber();
+    private void downloadResource(URL resource, File file) throws IOException {
+        file.getParentFile().mkdirs();
+
+        InputStream is = null;
+        FileOutputStream fos = null;
+
+        try {
+            is = resource.openStream();
+            fos = new FileOutputStream(file);
+
+            byte[] buffer = new byte[1024];
+            int read;
+
+            while ((read = is.read(buffer)) > 0) {
+                fos.write(buffer, 0, read);
             }
+        } finally {
+            if (is != null) {
+                try {
+                    is.close();
+                } catch (IOException e) {
+                }
+            }
+            if (fos != null) {
+                try {
+                    fos.close();
+                } catch (IOException e) {
+                }
+            }
+        }
+    }
+
+    private void loadDefaults() throws IOException, InvalidConfigurationException {
+        File configFile = new File(getDataDirectory(), "config.yml");
+
+        if (!configFile.exists()) {
+            try {
+                downloadResource(RaidsManager.class.getClassLoader().getResource("config.yml"), configFile);
+                downloadResource(
+                        RaidsManager.class.getClassLoader().getResource("dungeons/arena.zip"), new File(getDungeonDirectory(), "arena.zip"));
+            } catch (IOException e) {
+                getLogger().warning("Unable to load defaults: " + e);
+            }
+
+            YamlConfiguration yamlConfig = new YamlConfiguration();
+            yamlConfig.load(configFile);
+
+            raidsConfig = RaidsConfig.from(yamlConfig);
         }
     }
 

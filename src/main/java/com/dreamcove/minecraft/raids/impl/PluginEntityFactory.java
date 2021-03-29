@@ -127,7 +127,7 @@ public class PluginEntityFactory extends EntityFactory {
         @Override
         public List<World> getWorlds() {
             return plugin.getServer().getWorlds().stream()
-                    .map(w -> new PluginWorld(w))
+                    .map(PluginWorld::new)
                     .collect(Collectors.toList());
         }
 
