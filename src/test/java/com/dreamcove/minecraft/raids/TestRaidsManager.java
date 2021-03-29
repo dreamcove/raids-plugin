@@ -27,7 +27,7 @@ public class TestRaidsManager {
     private static TestPartyFactory.TestParty party1;
 
     @BeforeAll
-    public static void load() {
+    public static void load() throws IOException {
         allPerms = RaidsManager.ALL_COMMANDS.stream().map(RaidsManager::getPermission).collect(Collectors.toList());
 
         EntityFactory.setInstance(new TestEntityFactory());
@@ -36,6 +36,8 @@ public class TestRaidsManager {
         File dataDirectory = new File(new File("test-data"), "plugin");
 
         manager = new RaidsManager(dataDirectory, TestRaidsManager.class.getClassLoader().getResource("test-config.yml"), null);
+
+        manager.deleteFile(new File("test-data"));
 
         player1 = new TestEntityFactory.TestPlayer(UUID.randomUUID().toString());
         player2 = new TestEntityFactory.TestPlayer(UUID.randomUUID().toString());
