@@ -16,6 +16,8 @@ import java.nio.file.Paths;
 import java.util.*;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 /**
  * RaidsManager handles the logic around the management of the raid.
@@ -42,12 +44,19 @@ public class RaidsManager {
     private final Map<UUID, String> queuedParties = Collections.synchronizedMap(new HashMap<>());
     private final Map<UUID, Location> lastLocation = Collections.synchronizedMap(new HashMap<>());
     private final URL configFile;
+
+    public File getDataDirectory() {
+        return dataDirectory;
+    }
+
+    private final File dataDirectory;
     private Logger logger;
     private RaidsConfig raidsConfig;
     private boolean running;
 
     // Constructors
-    public RaidsManager(URL configFile, Logger logger) {
+    public RaidsManager(File dataDirectory, URL configFile, Logger logger) {
+        this.dataDirectory = dataDirectory;
         this.logger = logger;
         this.configFile = configFile;
         initialize();
@@ -244,7 +253,7 @@ public class RaidsManager {
 
     public void cleanRaids() {
         for (World w : getServer().getWorlds()) {
-            if (!queuedParties.containsValue(w.getName()) && w.getName().startsWith("raid_") && w.getPlayers().isEmpty()) {
+            if (!queuedParties.containsValue(w.getName()) && w.getName().startsWith(getRaidsConfig().getRaidWorldPrefix()) && w.getPlayers().isEmpty()) {
                 getLogger().info("Removing unused dungeon - " + w.getName() + " (no players)");
 
                 try {
@@ -322,27 +331,6 @@ public class RaidsManager {
         }
     }
 
-    public void cloneWorld(String fromWorld, String toWorld) throws IOException {
-        // Ensure the from world exists and the to world does not exist
-        if (getServer().getWorld(fromWorld) != null && getServer().getWorld(toWorld) == null) {
-            getLogger().info("Cloning " + fromWorld + " to create " + toWorld);
-
-            copyFile(getServer().getWorld(fromWorld).getWorldFolder(), new File(getServer().getWorldContainer(), toWorld));
-
-            WorldCreator creator = new WorldCreator(toWorld);
-            World newWorld = EntityFactory.getInstance().getServer().createWorld(creator);
-
-            // Turn off animal/monster spawns
-            newWorld.setDifficulty(Difficulty.PEACEFUL);
-
-
-            // clear all existing mobs
-            newWorld.getEntities().forEach(Entity::remove);
-
-            getLogger().info("Clone complete.");
-        }
-    }
-
     public boolean cancelRaid(UUID partyId) {
         if (isPartyQueued(partyId)) {
             dequeueParty(partyId);
@@ -355,8 +343,8 @@ public class RaidsManager {
         return false;
     }
 
-    public void startRaid(UUID partyId, String newWorld, Raid raid) {
-        queueParty(partyId, newWorld);
+    public void startRaid(UUID partyId, World newWorld, Raid raid) {
+        queueParty(partyId, newWorld.getName());
 
         Party party = PartyFactory.getInstance().getParty(partyId);
 
@@ -406,13 +394,11 @@ public class RaidsManager {
                                     if (raid != null) {
                                         receiver.sendMessage("Creating raid dungeon");
 
-                                        String newWorld = "raid_" + raid.getName() + "_" + System.currentTimeMillis();
-
                                         try {
-                                            cloneWorld(raid.getDungeonName(), newWorld);
-                                            startRaid(partyId, newWorld, raid);
+                                            World w = setupRaidWorld(raid);
+                                            startRaid(partyId, w, raid);
                                         } catch (IOException e) {
-                                            receiver.sendMessage("Error creating raid");
+                                            receiver.sendMessage("Error creating raid: " + e);
                                             getLogger().throwing(RaidsPlugin.class.getName(), "onCommand", e);
                                         }
 
@@ -475,7 +461,7 @@ public class RaidsManager {
 
     public List<World> getActiveRaids() {
         return getServer().getWorlds().stream()
-                .filter(w -> w.getName().startsWith("raid_"))
+                .filter(w -> w.getName().startsWith(getRaidsConfig().getRaidWorldPrefix()))
                 .collect(Collectors.toList());
     }
 
@@ -486,6 +472,104 @@ public class RaidsManager {
                 startScrubber();
             }
         }
+    }
+
+    private File getDungeonDirectory() {
+        File result = new File(getDataDirectory(), "dungeons");
+        if (!result.exists()) {
+            result.mkdirs();
+        }
+
+        return result;
+    }
+
+    private World setupRaidWorld(Raid raid) throws IOException {
+        String filename = raid.getDungeonName() + ".zip";
+
+        File dungeonFile = new File(getDungeonDirectory(), filename);
+
+        if (!dungeonFile.exists()) {
+            // See if there is a default dungeon by that name for loading
+            URL url = Thread.currentThread().getContextClassLoader().getResource("dungeons/" + filename);
+
+            if (url == null) {
+                throw new IOException("Dungeon " + raid.getDungeonName() + " not found");
+            }
+
+            InputStream is = null;
+            OutputStream os = null;
+
+            try {
+                is = url.openStream();
+                os = new FileOutputStream(dungeonFile);
+
+                byte[] buffer = new byte[1024];
+                int read;
+
+                while ((read = is.read(buffer)) > 0) {
+                    os.write(buffer, 0, read);
+                }
+            } finally {
+                try {
+                    os.close();
+                } catch (IOException e) {
+                }
+                try {
+                    is.close();
+                } catch (IOException e) {
+                }
+            }
+        }
+
+        String worldName = getRaidsConfig().getRaidWorldPrefix() + "_" + UUID.randomUUID().toString();
+        File worldDir = new File(getServer().getWorldContainer(), worldName);
+
+        ZipInputStream zis = new ZipInputStream(new FileInputStream(dungeonFile));
+        ZipEntry entry;
+
+        while ((entry = zis.getNextEntry()) != null) {
+            if (!entry.getName().endsWith("uid.dat") && !entry.getName().endsWith("session.lock")) {
+                File file = new File(worldDir, entry.getName());
+                if (entry.isDirectory()) {
+                    file.mkdirs();
+                } else {
+                    file.getParentFile().mkdirs();
+
+                    FileOutputStream fos = null;
+                    try {
+                        fos = new FileOutputStream(file);
+                        byte[] buffer = new byte[1024];
+                        int read;
+
+                        while ((read = zis.read(buffer)) > 0) {
+                            fos.write(buffer, 0, read);
+                        }
+                    } finally {
+                        if (fos != null) {
+                            try {
+                                fos.close();
+                            } catch (IOException e) {
+                            }
+                        }
+                    }
+                }
+            }
+            zis.closeEntry();
+        }
+
+        zis.close();
+
+        WorldCreator creator = new WorldCreator(worldName);
+        World world = EntityFactory.getInstance().getServer().createWorld(creator);
+
+        // Turn off animal/monster spawns
+        world.setDifficulty(Difficulty.PEACEFUL);
+
+
+        // clear all existing mobs
+        world.getEntities().forEach(Entity::remove);
+
+        return world;
     }
 
     class StartRaidRunnable implements Runnable {

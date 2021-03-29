@@ -33,7 +33,9 @@ public class TestRaidsManager {
         EntityFactory.setInstance(new TestEntityFactory());
         PartyFactory.setInstance(new TestPartyFactory());
 
-        manager = new RaidsManager(TestRaidsManager.class.getClassLoader().getResource("test-config.yml"), null);
+        File dataDirectory = new File(new File("test-data"), "plugin");
+
+        manager = new RaidsManager(dataDirectory, TestRaidsManager.class.getClassLoader().getResource("test-config.yml"), null);
 
         player1 = new TestEntityFactory.TestPlayer(UUID.randomUUID().toString());
         player2 = new TestEntityFactory.TestPlayer(UUID.randomUUID().toString());
@@ -50,34 +52,18 @@ public class TestRaidsManager {
         party1.addMember(player2.getUniqueId());
 
         ((TestPartyFactory) PartyFactory.getInstance()).addParty(party1);
-
-
-        File worldDir = new File(server.getWorldContainer(), "template_arena");
-        File childDir = new File(worldDir, "child");
-        childDir.mkdirs();
-        try {
-            File tempFile = new File(childDir, "tempfile.txt");
-            FileOutputStream fos = new FileOutputStream(tempFile);
-            fos.write(UUID.randomUUID().toString().getBytes());
-            fos.close();
-
-            new File(worldDir, "uid.dat").createNewFile();
-            server.createWorld(new WorldCreator("template_arena"));
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
     }
 
     @AfterAll
     public static void unload() {
         // Test shutdown
         Assertions.assertNotEquals(0, manager.getActiveRaids().size());
+        Assertions.assertNotEquals(0, EntityFactory.getInstance().getServer().getWorldContainer().listFiles().length);
 
         manager.shutdown();
 
         Assertions.assertEquals(0, manager.getActiveRaids().size());
-
-        Assertions.assertEquals(2, EntityFactory.getInstance().getServer().getWorldContainer().listFiles().length);
+        Assertions.assertEquals(0, EntityFactory.getInstance().getServer().getWorldContainer().listFiles().length);
     }
 
     @Test
@@ -127,65 +113,12 @@ public class TestRaidsManager {
     }
 
     @Test
-    public void testCloneWorld() {
-        try {
-            manager.cloneWorld("template_arena", "new-world");
-
-            World newWorld = EntityFactory.getInstance().getServer().getWorld("new-world");
-            World oldWorld = EntityFactory.getInstance().getServer().getWorld("template_arena");
-
-            Assertions.assertNotNull(newWorld);
-            Assertions.assertNotNull(oldWorld);
-
-            Assertions.assertTrue(new File(oldWorld.getWorldFolder(), "uid.dat").exists());
-            Assertions.assertFalse(new File(newWorld.getWorldFolder(), "uid.dat").exists());
-        } catch (IOException e) {
-            Assertions.fail(e);
-        }
-    }
-
-    @Test
-    public void testRemoveWorld() {
-        try {
-            manager.cloneWorld("template_arena", "new-world-1");
-
-            World newWorld = EntityFactory.getInstance().getServer().getWorld("new-world-1");
-            World oldWorld = EntityFactory.getInstance().getServer().getWorld("template_arena");
-
-            Assertions.assertNotNull(newWorld);
-            Assertions.assertNotNull(oldWorld);
-
-            manager.removeWorld(newWorld);
-
-            Assertions.assertNull(EntityFactory.getInstance().getServer().getWorld(newWorld.getName()));
-            Assertions.assertFalse(newWorld.getWorldFolder().exists());
-        } catch (IOException e) {
-            Assertions.fail(e);
-        }
-    }
-
-    @Test
     public void testAvailableRaids() {
         List<String> names = manager.getAvailableRaids();
 
         Assertions.assertEquals(2, names.size());
         Assertions.assertTrue(names.contains("arena_1"));
         Assertions.assertTrue(names.contains("arena_2"));
-    }
-
-    @Test
-    public void testCleanRaids() {
-        try {
-            manager.cloneWorld("template_arena", "raid_arena_123456");
-
-            Assertions.assertNotNull(EntityFactory.getInstance().getServer().getWorld("raid_arena_123456"));
-
-            manager.cleanRaids();
-
-            Assertions.assertNull(EntityFactory.getInstance().getServer().getWorld("raid_arena_123456"));
-        } catch (Throwable t) {
-            Assertions.fail(t);
-        }
     }
 
     @Test

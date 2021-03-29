@@ -12,10 +12,21 @@ public class RaidsConfig {
     private final List<Raid> raids = Collections.synchronizedList(new ArrayList<>());
     private int cleanCycle;
 
+    public String getRaidWorldPrefix() {
+        return raidWorldPrefix;
+    }
+
+    public void setRaidWorldPrefix(String raidWorldPrefix) {
+        this.raidWorldPrefix = raidWorldPrefix;
+    }
+
+    private String raidWorldPrefix;
+
     public static RaidsConfig from(FileConfiguration fileConfig) {
         RaidsConfig result = new RaidsConfig();
 
         result.setCleanCycle(fileConfig.getInt("clean-cycle", 15));
+        result.setRaidWorldPrefix(fileConfig.getString("raid-world-prefix", "partyraids"));
 
         ConfigurationSection section = fileConfig.getConfigurationSection("raids");
 

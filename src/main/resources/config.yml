@@ -1,4 +1,5 @@
 clean-cycle: 15 # remove empty raids every 15 seconds
+raid-world-prefix: partyraids
 raids:
   example:
     dungeon: template_arena
