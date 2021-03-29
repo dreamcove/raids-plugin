@@ -65,9 +65,11 @@ public class RaidsManager {
     public synchronized RaidsConfig getRaidsConfig() {
         if (raidsConfig == null) {
             InputStream is = null;
+            BufferedReader br = null;
+            
             try {
                 is = configFile.openStream();
-                BufferedReader br = new BufferedReader(new InputStreamReader(is));
+                br = new BufferedReader(new InputStreamReader(is));
 
                 StringBuilder result = new StringBuilder();
                 String line;
@@ -75,8 +77,6 @@ public class RaidsManager {
                 while ((line = br.readLine()) != null) {
                     result.append(line).append("\n");
                 }
-
-                br.close();
 
                 YamlConfiguration yamlConfig = new YamlConfiguration();
                 yamlConfig.loadFromString(result.toString());
@@ -86,11 +86,16 @@ public class RaidsManager {
                 getLogger().severe("Error loading configuration");
                 getLogger().throwing("RaidsManager", "getRaidsConfig", ioExc);
             } finally {
+                if (br != null) {
+                    try {
+                        br.close();
+                    } catch (IOException ioExc) {
+                    }
+                }
                 if (is != null) {
                     try {
                         is.close();
                     } catch (IOException ioExc) {
-                        ioExc.printStackTrace();
                     }
                 }
             }
