@@ -1,0 +1,34 @@
+clean-cycle: 15 # remove empty raids every 5 seconds
+raids:
+  arena_1:
+    dungeon: template_arena
+    spawn-location: 0, 0, 0
+    start-criteria:
+      minimum-party-size: 1
+      minimum-rank: 1
+      average-rank: 1
+    join-in: 5 # number of seconds for the online to join
+    on-start:
+      clear-mobs: true
+      mobs:
+        1:
+          type: VILLAGER
+          location: 1, 2, 3
+      commands:
+        - day
+  arena_2:
+    dungeon: template_arena
+    spawn-location: 0, 0, 0
+    start-criteria:
+      minimum-party-size: 1
+      minimum-rank: 1
+      average-rank: 1
+    join-in: 5 # number of seconds for the online to join
+    on-start:
+      clear-mobs: true
+      mobs:
+        1:
+          type: VILLAGER
+          location: 1, 2, 3
+      commands:
+        - day

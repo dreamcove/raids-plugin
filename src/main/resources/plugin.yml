@@ -5,7 +5,6 @@ author: vaporofnuance
 api-version: 1.16
 load: POSTWORLD
 depend:
-  - Multiverse-Core
   - Parties
 permissions:
   raids.start:

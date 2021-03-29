@@ -84,9 +84,6 @@ public class TestEntityFactory extends EntityFactory {
 
         public TestWorld(String name) {
             this.name = name;
-        }        @Override
-        public String getName() {
-            return name;
         }
 
         public void addPlayer(Player player) {
@@ -97,6 +94,10 @@ public class TestEntityFactory extends EntityFactory {
             players.clear();
         }
 
+        @Override
+        public String getName() {
+            return name;
+        }
 
 
         @Override
@@ -127,6 +128,11 @@ public class TestEntityFactory extends EntityFactory {
             this.difficulty = difficulty;
         }
 
+        @Override
+        public void removeAllEntities() {
+            // Not implemented
+        }
+
 
     }
 
@@ -137,14 +143,15 @@ public class TestEntityFactory extends EntityFactory {
 
         protected void addPlayer(Player player) {
             players.add(player);
-        }        @Override
+        }
+
+        @Override
         public World getWorld(String name) {
             return getWorlds().stream()
                     .filter(w -> w.getName().equals(name))
                     .findFirst()
                     .orElse(null);
         }
-
 
 
         @Override

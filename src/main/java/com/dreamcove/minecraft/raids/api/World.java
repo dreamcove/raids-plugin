@@ -19,4 +19,6 @@ public interface World {
     List<org.bukkit.entity.Entity> getEntities();
 
     void setDifficulty(Difficulty difficulty);
+
+    void removeAllEntities();
 }

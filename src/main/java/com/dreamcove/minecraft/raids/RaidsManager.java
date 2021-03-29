@@ -1,13 +1,18 @@
 package com.dreamcove.minecraft.raids;
 
 import com.dreamcove.minecraft.raids.api.*;
+import com.dreamcove.minecraft.raids.config.Raid;
+import com.dreamcove.minecraft.raids.config.RaidsConfig;
 import org.bukkit.Difficulty;
 import org.bukkit.Location;
 import org.bukkit.WorldCreator;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Entity;
 
 import java.io.*;
-import java.nio.file.*;
+import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -26,42 +31,140 @@ public class RaidsManager {
     public static final String CMD_END = "end";
     public static final String CMD_EXIT = "exit";
     public static final String CMD_HELP = "help";
-    public static final String PERM_RELOAD = "raids.reload";
-    public static final String PERM_START_RAID = "raids.start";
-    public static final String PERM_CANCEL_RAID = "raids.cancel";
-    public static final String PERM_END_RAID = "raids.end";
-    public static final String PERM_EXIT_RAID = "raids.exit";
+    public static final List<String> ALL_COMMANDS = Arrays.asList(
+            CMD_RELOAD,
+            CMD_START,
+            CMD_CANCEL,
+            CMD_END,
+            CMD_EXIT,
+            CMD_HELP
+    );
     private final Map<UUID, String> queuedParties = Collections.synchronizedMap(new HashMap<>());
     private final Map<UUID, Location> lastLocation = Collections.synchronizedMap(new HashMap<>());
-    private List<String> availableRaids = null;
+    private final URL configFile;
     private Logger logger;
+    private RaidsConfig raidsConfig;
+    private boolean running;
 
     // Constructors
-    public RaidsManager(Logger logger) {
+    public RaidsManager(URL configFile, Logger logger) {
         this.logger = logger;
+        this.configFile = configFile;
+        initialize();
+    }
+
+    private void initialize() {
+        running = true;
+        startScrubber();
+    }
+
+    private void startScrubber() {
+        EntityFactory.getInstance().getServer().delayRunnable(new RaidScrubber(), getRaidsConfig().getCleanCycle() * 20L);
+    }
+
+    public synchronized RaidsConfig getRaidsConfig() {
+        if (raidsConfig == null) {
+            InputStream is = null;
+            BufferedReader br = null;
+
+            try {
+                is = configFile.openStream();
+                br = new BufferedReader(new InputStreamReader(is));
+
+                StringBuilder result = new StringBuilder();
+                String line;
+
+                while ((line = br.readLine()) != null) {
+                    result.append(line).append("\n");
+                }
+
+                YamlConfiguration yamlConfig = new YamlConfiguration();
+                yamlConfig.loadFromString(result.toString());
+
+                raidsConfig = RaidsConfig.from(yamlConfig);
+            } catch (Exception ioExc) {
+                getLogger().severe("Error loading configuration");
+                getLogger().throwing("RaidsManager", "getRaidsConfig", ioExc);
+            } finally {
+                if (br != null) {
+                    try {
+                        br.close();
+                    } catch (IOException ioExc) {
+                    }
+                }
+                if (is != null) {
+                    try {
+                        is.close();
+                    } catch (IOException ioExc) {
+                    }
+                }
+            }
+
+            if (raidsConfig == null) {
+                // Default to an empty config on error
+                raidsConfig = new RaidsConfig();
+            }
+        }
+
+        return raidsConfig;
+    }
+
+    private Logger getLogger() {
+        if (logger == null) {
+            logger = Logger.getLogger(RaidsManager.class.getName());
+        }
+
+        return logger;
+    }
+
+    public void shutdown() {
+        running = false;
+
+        getActiveRaids().stream().forEach(w -> {
+            w.getPlayers().forEach(p -> {
+                if (getLastLocation(p) != null) {
+                    p
+                            .getWorld()
+                            .getPlayers()
+                            .forEach(this::returnLastLocation);
+                }
+            });
+            try {
+                removeWorld(w);
+            } catch (IOException e) {
+                getLogger().severe("Error removing world " + w.getName());
+                getLogger().throwing("RaidsManager", "shutdown", e);
+            }
+        });
+
+        cleanRaids();
+    }
+
+    public void reload() {
+        raidsConfig = null;
     }
 
     // Instance Methods
     public final List<String> getHelp(List<String> perms) {
         ArrayList<String> result = new ArrayList<>();
 
-        if (perms.contains(PERM_START_RAID)) {
+        if (perms.contains(getPermission(CMD_START))) {
             result.add("/raids start <raid> - Start specified raid");
         }
 
-        if (perms.contains(PERM_CANCEL_RAID)) {
+        if (perms.contains(getPermission(CMD_CANCEL))) {
             result.add("/raids cancel - Cancel raid before it starts");
         }
 
-        if (perms.contains(PERM_END_RAID)) {
+        if (perms.contains(getPermission(CMD_END))) {
             result.add("/raids end - Ends the raid for all members of the party");
         }
 
-        if (perms.contains(PERM_EXIT_RAID)) {
+        if (perms.contains(getPermission(CMD_EXIT))) {
             result.add("/raids exit - Exit the raid (just you)");
         }
 
-        if (perms.contains(PERM_RELOAD)) {
+        if (perms.contains(getPermission(CMD_RELOAD))) {
             result.add("/raids reload - Reload config for plugin");
         }
 
@@ -74,22 +177,25 @@ public class RaidsManager {
         if (command.equals("raids")) {
             if (args.size() == 1) {
                 result.add("CMD_HELP");
-                if (perms.contains(PERM_START_RAID)) {
+                if (perms.contains(getPermission(CMD_START))) {
                     result.add(CMD_START);
                 }
-                if (perms.contains(PERM_CANCEL_RAID)) {
+                if (perms.contains(getPermission(CMD_CANCEL))) {
                     result.add(CMD_CANCEL);
                 }
-                if (perms.contains(PERM_EXIT_RAID)) {
+                if (perms.contains(getPermission(CMD_EXIT))) {
                     result.add(CMD_EXIT);
                 }
-                if (perms.contains(PERM_END_RAID)) {
+                if (perms.contains(getPermission(CMD_END))) {
                     result.add(CMD_END);
                 }
-                if (perms.contains(PERM_RELOAD)) {
+                if (perms.contains(getPermission(CMD_RELOAD))) {
                     result.add(CMD_RELOAD);
                 }
-            } else if (args.size() == 2 && args.get(0).equals(CMD_START) && perms.contains(PERM_START_RAID)) {
+                if (perms.contains(getPermission(CMD_HELP))) {
+                    result.add(CMD_HELP);
+                }
+            } else if (args.size() == 2 && args.get(0).equals(CMD_START) && perms.contains(getPermission(CMD_START))) {
                 result.addAll(getAvailableRaids());
             }
         }
@@ -97,17 +203,12 @@ public class RaidsManager {
         return result;
     }
 
-    public List<String> getAvailableRaids() {
-        if (availableRaids == null) {
-            availableRaids = Collections.synchronizedList(EntityFactory.getInstance().getServer()
-                    .getWorlds()
-                    .stream()
-                    .filter(w -> w.getName().startsWith("template_"))
-                    .map(w -> w.getName().substring(9))
-                    .collect(Collectors.toList()));
-        }
+    public static String getPermission(String command) {
+        return "raids." + command;
+    }
 
-        return availableRaids;
+    public List<String> getAvailableRaids() {
+        return getRaidsConfig().getRaids().stream().map(Raid::getName).collect(Collectors.toList());
     }
 
     public void storeLastLocation(Player player) {
@@ -174,14 +275,6 @@ public class RaidsManager {
             deleteFile(world.getWorldFolder());
             getLogger().info(world.getName() + " removed.");
         }
-    }
-
-    private Logger getLogger() {
-        if (logger == null) {
-            logger = Logger.getLogger(RaidsManager.class.getName());
-        }
-
-        return logger;
     }
 
     private Server getServer() {
@@ -262,23 +355,18 @@ public class RaidsManager {
         return false;
     }
 
-    public void startRaid(UUID partyId, String oldWorld, String newWorld) throws IOException {
+    public void startRaid(UUID partyId, String newWorld, Raid raid) {
         queueParty(partyId, newWorld);
 
-        try {
-            cloneWorld(oldWorld, newWorld);
+        Party party = PartyFactory.getInstance().getParty(partyId);
 
-            Party party = PartyFactory.getInstance().getParty(partyId);
-
+        if (raid.getJoinIn() > 0) {
             party.broadcastMessage("Party is queued for a raid.");
-            party.broadcastMessage("Starting in 15 seconds.");
+            party.broadcastMessage("Starting in " + raid.getJoinIn() + " seconds.");
             party.broadcastMessage("Use /raids cancel to abort.");
-
-            EntityFactory.getInstance().getServer().delayRunnable(new StartRaidRunnable(partyId), (long) 15 * 20);
-        } catch (IOException e) {
-            dequeueParty(partyId);
-            throw e;
         }
+
+        EntityFactory.getInstance().getServer().delayRunnable(new StartRaidRunnable(partyId), (long) raid.getJoinIn() * 20);
     }
 
     public boolean processCommand(MessageReceiver receiver, String command, List<String> args, List<String> perms) {
@@ -296,8 +384,12 @@ public class RaidsManager {
                     }
                 }
 
-                if (player != null) {
+                if (player != null && perms.contains(getPermission(args.get(0)))) {
                     switch (args.get(0)) {
+                        case CMD_RELOAD:
+                            reload();
+                            receiver.sendMessage("Config reloaded. Found " + getAvailableRaids().size() + " raids.");
+                            break;
                         case CMD_HELP:
                             for (String help : getHelp(perms)) {
                                 receiver.sendMessage(help);
@@ -310,27 +402,22 @@ public class RaidsManager {
                                 if (partyId == null) {
                                     receiver.sendMessage("Player must belong to party");
                                 } else {
-                                    boolean found = false;
-                                    for (World w : EntityFactory.getInstance().getServer().getWorlds()) {
-                                        if (w.getName().equals("template_" + args.get(1))) {
-                                            receiver.sendMessage("Creating raid dungeon");
+                                    Raid raid = getRaid(args.get(1));
+                                    if (raid != null) {
+                                        receiver.sendMessage("Creating raid dungeon");
 
-                                            String newWorld = "raid_" + args.get(1) + "_" + System.currentTimeMillis();
+                                        String newWorld = "raid_" + raid.getName() + "_" + System.currentTimeMillis();
 
-                                            try {
-                                                cloneWorld(w.getName(), newWorld);
-                                                startRaid(partyId, args.get(1), newWorld);
-                                                found = true;
-                                            } catch (IOException e) {
-                                                receiver.sendMessage("Error creating raid");
-                                                getLogger().throwing(RaidsPlugin.class.getName(), "onCommand", e);
-                                            }
-
+                                        try {
+                                            cloneWorld(raid.getDungeonName(), newWorld);
+                                            startRaid(partyId, newWorld, raid);
+                                        } catch (IOException e) {
+                                            receiver.sendMessage("Error creating raid");
+                                            getLogger().throwing(RaidsPlugin.class.getName(), "onCommand", e);
                                         }
-                                    }
 
-                                    if (!found) {
-                                        receiver.sendMessage("Could not find raid template");
+                                    } else {
+                                        receiver.sendMessage("Could not find raid raid");
                                     }
                                 }
                             } else {
@@ -377,6 +464,28 @@ public class RaidsManager {
         }
 
         return false;
+    }
+
+    private Raid getRaid(String name) {
+        return getRaidsConfig().getRaids().stream()
+                .filter(r -> r.getName().equals(name))
+                .findFirst()
+                .orElse(null);
+    }
+
+    public List<World> getActiveRaids() {
+        return getServer().getWorlds().stream()
+                .filter(w -> w.getName().startsWith("raid_"))
+                .collect(Collectors.toList());
+    }
+
+    class RaidScrubber implements Runnable {
+        public void run() {
+            if (running) {
+                cleanRaids();
+                startScrubber();
+            }
+        }
     }
 
     class StartRaidRunnable implements Runnable {

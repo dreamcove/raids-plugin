@@ -9,30 +9,17 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.io.File;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class RaidsPlugin extends JavaPlugin {
-
 
     private RaidsManager manager;
 
     public RaidsPlugin() {
         super();
-    }
-
-    private List<String> getPermissions(CommandSender sender) {
-        return Stream.of(
-                        RaidsManager.PERM_CANCEL_RAID,
-                        RaidsManager.PERM_END_RAID,
-                        RaidsManager.PERM_EXIT_RAID,
-                        RaidsManager.PERM_START_RAID,
-                        RaidsManager.PERM_RELOAD
-                )
-                        .filter(sender::hasPermission)
-                        .collect(Collectors.toList());
     }
 
     @Override
@@ -48,9 +35,21 @@ public class RaidsPlugin extends JavaPlugin {
         return manager.processCommand(receiver, command.getName(), Arrays.asList(args), getPermissions(sender));
     }
 
+    private List<String> getPermissions(CommandSender sender) {
+        return RaidsManager.ALL_COMMANDS.stream()
+                .map(RaidsManager::getPermission)
+                .filter(sender::hasPermission)
+                .collect(Collectors.toList());
+    }
+
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         return manager.getTabComplete(command.getName(), getPermissions(sender), Arrays.asList(args));
+    }
+
+    @Override
+    public void onDisable() {
+        manager.shutdown();
     }
 
     @Override
@@ -62,8 +61,11 @@ public class RaidsPlugin extends JavaPlugin {
             PartyFactory.setInstance(new PartiesPartyFactory());
         }
 
-        manager = new RaidsManager(getLogger());
-
-        EntityFactory.getInstance().getServer().scheduleRunnable(() -> manager.cleanRaids(), 60 * 20);
+        try {
+            manager = new RaidsManager(new File(getDataFolder(), "config.yml").toURI().toURL(), getLogger());
+        } catch (Exception exc) {
+            getLogger().severe("Error loading config file");
+            getLogger().throwing("RaidsPlugin", "onEnable", exc);
+        }
     }
 }
