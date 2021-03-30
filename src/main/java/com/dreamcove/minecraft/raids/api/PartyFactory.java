@@ -14,8 +14,6 @@ public abstract class PartyFactory {
         instance = pInstance;
     }
 
-    public abstract boolean arePartiesEnabled();
-
     public abstract Party getParty(UUID partyId);
 
     public abstract List<Party> getOnlineParties();

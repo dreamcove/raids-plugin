@@ -7,6 +7,9 @@ load: POSTWORLD
 depend:
   - Parties
 permissions:
+  raids.help:
+    description: Allows player to ask for help
+    default: true
   raids.start:
     description: Allows starting a command
     default: true
@@ -19,7 +22,10 @@ permissions:
   raids.end:
     description: Allows party members to end the raid
     default: true
+  raids.reload:
+    description: Allows for reload of plugin configuration
+    default: op
 commands:
   raids:
-    description: Manage raids
+    description: Manage party raids
     usage: /raids help

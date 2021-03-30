@@ -7,6 +7,15 @@ public class Raid {
     private String dungeonName;
     private Point spawnLocation = new Point(0, 0, 0);
     private int joinIn = 15;
+    private String difficulty;
+
+    public String getDifficulty() {
+        return difficulty;
+    }
+
+    public void setDifficulty(String difficulty) {
+        this.difficulty = difficulty;
+    }
 
     public String getName() {
         return name;

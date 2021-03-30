@@ -10,12 +10,7 @@ import java.util.logging.Logger;
 
 public class TestPartyFactory extends PartyFactory {
 
-    private final List<Party> parties = new ArrayList<Party>();
-
-    @Override
-    public boolean arePartiesEnabled() {
-        return true;
-    }
+    private final List<Party> parties = new ArrayList<>();
 
     @Override
     public Party getParty(UUID partyId) {
@@ -60,7 +55,7 @@ public class TestPartyFactory extends PartyFactory {
 
         @Override
         public List<UUID> getMembers() {
-            return new ArrayList<UUID>(members);
+            return new ArrayList<>(members);
         }
 
         @Override

@@ -3,7 +3,9 @@ package com.dreamcove.minecraft.raids;
 import com.dreamcove.minecraft.raids.api.EntityFactory;
 import com.dreamcove.minecraft.raids.api.PartyFactory;
 import com.dreamcove.minecraft.raids.api.World;
-import org.bukkit.Location;
+import com.dreamcove.minecraft.raids.api.WorldLocation;
+import com.dreamcove.minecraft.raids.config.Point;
+import com.dreamcove.minecraft.raids.utils.FileUtilities;
 import org.bukkit.WorldCreator;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
@@ -27,13 +29,18 @@ public class TestRaidsManager {
     private static TestPartyFactory.TestParty party1;
 
     @BeforeAll
-    public static void load() {
+    public static void load() throws IOException {
+        FileUtilities.deleteFile(new File(new File("target"), "test-data"));
+
+
         allPerms = RaidsManager.ALL_COMMANDS.stream().map(RaidsManager::getPermission).collect(Collectors.toList());
 
         EntityFactory.setInstance(new TestEntityFactory());
         PartyFactory.setInstance(new TestPartyFactory());
 
-        manager = new RaidsManager(TestRaidsManager.class.getClassLoader().getResource("test-config.yml"), null);
+        File dataDirectory = new File(new File(new File("target"), "test-data"), "plugin");
+
+        manager = new RaidsManager(dataDirectory, null);
 
         player1 = new TestEntityFactory.TestPlayer(UUID.randomUUID().toString());
         player2 = new TestEntityFactory.TestPlayer(UUID.randomUUID().toString());
@@ -51,40 +58,55 @@ public class TestRaidsManager {
 
         ((TestPartyFactory) PartyFactory.getInstance()).addParty(party1);
 
-
-        File worldDir = new File(server.getWorldContainer(), "template_arena");
-        File childDir = new File(worldDir, "child");
-        childDir.mkdirs();
-        try {
-            File tempFile = new File(childDir, "tempfile.txt");
-            FileOutputStream fos = new FileOutputStream(tempFile);
-            fos.write(UUID.randomUUID().toString().getBytes());
-            fos.close();
-
-            new File(worldDir, "uid.dat").createNewFile();
-            server.createWorld(new WorldCreator("template_arena"));
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        EntityFactory.getInstance().getServer().createWorld(new WorldCreator("empty_world"));
     }
 
     @AfterAll
     public static void unload() {
+        // Start a raid to validate we're shutting down properly
+        WorldLocation loc1 = player1.getLocation();
+        WorldLocation loc2 = player2.getLocation();
+
+        Assertions.assertTrue(manager.processCommand(player1, "raids", Arrays.asList("start", "example"), allPerms));
+
+        Assertions.assertTrue(manager.isPartyQueued(party1.getId()));
+
+        TestEntityFactory.TestWorld world = (TestEntityFactory.TestWorld) EntityFactory.getInstance().getServer().getWorld(manager.getQueuedWorld(party1.getId()));
+
+        try {
+            Thread.sleep(6 * 1000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        Assertions.assertNotEquals(loc1, player1.getLocation());
+        Assertions.assertNotEquals(loc2, player2.getLocation());
+
+        // Minor nudge for testing purposes
+        player1.setWorld(world);
+        player2.setWorld(world);
+        world.addPlayer(player1);
+        world.addPlayer(player2);
+
         // Test shutdown
         Assertions.assertNotEquals(0, manager.getActiveRaids().size());
+        Assertions.assertTrue(Objects.requireNonNull(EntityFactory.getInstance().getServer().getWorldContainer().listFiles()).length > 1);
 
         manager.shutdown();
 
         Assertions.assertEquals(0, manager.getActiveRaids().size());
+        Assertions.assertEquals(2, Objects.requireNonNull(EntityFactory.getInstance().getServer().getWorldContainer().listFiles()).length);
 
-        Assertions.assertEquals(2, EntityFactory.getInstance().getServer().getWorldContainer().listFiles().length);
+        new File(EntityFactory.getInstance().getServer().getWorldContainer(), "new-world").mkdirs();
+        EntityFactory.getInstance().getServer().createWorld(new WorldCreator("new-world"));
+
     }
 
     @Test
     public void testHelp() {
         Assertions.assertEquals(0, manager.getHelp(new ArrayList<>()).size());
 
-        Assertions.assertEquals(5, manager.getHelp(allPerms).size());
+        Assertions.assertEquals(6, manager.getHelp(allPerms).size());
     }
 
     @Test
@@ -105,12 +127,12 @@ public class TestRaidsManager {
 
     @Test
     public void testLastLocation() {
-        Location newLoc = new Location(null, 23, 44, 33);
+        WorldLocation newLoc = new WorldLocation(null, new Point(23, 44, 33));
         TestEntityFactory.TestPlayer newPlayer = new TestEntityFactory.TestPlayer("abc");
 
         Assertions.assertNull(manager.getLastLocation(newPlayer));
 
-        Location oldLoc = newPlayer.getLocation();
+        WorldLocation oldLoc = newPlayer.getLocation();
 
         manager.storeLastLocation(newPlayer);
 
@@ -127,65 +149,11 @@ public class TestRaidsManager {
     }
 
     @Test
-    public void testCloneWorld() {
-        try {
-            manager.cloneWorld("template_arena", "new-world");
-
-            World newWorld = EntityFactory.getInstance().getServer().getWorld("new-world");
-            World oldWorld = EntityFactory.getInstance().getServer().getWorld("template_arena");
-
-            Assertions.assertNotNull(newWorld);
-            Assertions.assertNotNull(oldWorld);
-
-            Assertions.assertTrue(new File(oldWorld.getWorldFolder(), "uid.dat").exists());
-            Assertions.assertFalse(new File(newWorld.getWorldFolder(), "uid.dat").exists());
-        } catch (IOException e) {
-            Assertions.fail(e);
-        }
-    }
-
-    @Test
-    public void testRemoveWorld() {
-        try {
-            manager.cloneWorld("template_arena", "new-world-1");
-
-            World newWorld = EntityFactory.getInstance().getServer().getWorld("new-world-1");
-            World oldWorld = EntityFactory.getInstance().getServer().getWorld("template_arena");
-
-            Assertions.assertNotNull(newWorld);
-            Assertions.assertNotNull(oldWorld);
-
-            manager.removeWorld(newWorld);
-
-            Assertions.assertNull(EntityFactory.getInstance().getServer().getWorld(newWorld.getName()));
-            Assertions.assertFalse(newWorld.getWorldFolder().exists());
-        } catch (IOException e) {
-            Assertions.fail(e);
-        }
-    }
-
-    @Test
     public void testAvailableRaids() {
         List<String> names = manager.getAvailableRaids();
 
-        Assertions.assertEquals(2, names.size());
-        Assertions.assertTrue(names.contains("arena_1"));
-        Assertions.assertTrue(names.contains("arena_2"));
-    }
-
-    @Test
-    public void testCleanRaids() {
-        try {
-            manager.cloneWorld("template_arena", "raid_arena_123456");
-
-            Assertions.assertNotNull(EntityFactory.getInstance().getServer().getWorld("raid_arena_123456"));
-
-            manager.cleanRaids();
-
-            Assertions.assertNull(EntityFactory.getInstance().getServer().getWorld("raid_arena_123456"));
-        } catch (Throwable t) {
-            Assertions.fail(t);
-        }
+        Assertions.assertEquals(1, names.size());
+        Assertions.assertTrue(names.contains("example"));
     }
 
     @Test
@@ -197,18 +165,32 @@ public class TestRaidsManager {
         }
 
         result = manager.getTabComplete("raids", new ArrayList<>(), Collections.singletonList(""));
-        Assertions.assertEquals(1, result.size());
+        Assertions.assertEquals(0, result.size());
 
         result = manager.getTabComplete("raids", allPerms, Arrays.asList("start", ""));
 
         for (String raid : manager.getAvailableRaids()) {
             Assertions.assertTrue(result.contains(raid));
         }
+
+        final List<String> startResult = manager.getTabComplete("raids", allPerms, Arrays.asList("package", ""));
+
+        EntityFactory.getInstance().getServer().getWorlds().stream()
+                .map(World::getName)
+                .filter(n -> !n.startsWith(manager.getRaidsConfig().getRaidWorldPrefix()))
+                .forEach(n -> Assertions.assertTrue(startResult.contains(n)));
+
+        final List<String> packageResult = manager.getTabComplete("raids", allPerms, Arrays.asList("package", ""));
+
+        EntityFactory.getInstance().getServer().getWorlds().stream()
+                .map(World::getName)
+                .filter(n -> !n.startsWith(manager.getRaidsConfig().getRaidWorldPrefix()))
+                .forEach(n -> Assertions.assertTrue(packageResult.contains(n)));
     }
 
     @Test
     public void testCommandStart() {
-        Assertions.assertTrue(manager.processCommand(player1, "raids", Arrays.asList("start", "arena_1"), allPerms));
+        Assertions.assertTrue(manager.processCommand(player1, "raids", Arrays.asList("start", "example"), allPerms));
 
         Assertions.assertTrue(manager.isPartyQueued(party1.getId()));
 
@@ -219,7 +201,7 @@ public class TestRaidsManager {
 
     @Test
     public void testCommandCancel() {
-        Assertions.assertTrue(manager.processCommand(player1, "raids", Arrays.asList("start", "arena_1"), allPerms));
+        Assertions.assertTrue(manager.processCommand(player1, "raids", Arrays.asList("start", "example"), allPerms));
 
         Assertions.assertTrue(manager.isPartyQueued(party1.getId()));
 
@@ -231,17 +213,17 @@ public class TestRaidsManager {
     @Test
     public void testCommandStartWithoutParty() {
         List<World> worlds = EntityFactory.getInstance().getServer().getWorlds();
-        Assertions.assertTrue(manager.processCommand(player3, "raids", Arrays.asList("start", "arena_1"), allPerms));
+        Assertions.assertTrue(manager.processCommand(player3, "raids", Arrays.asList("start", "example"), allPerms));
 
         Assertions.assertEquals(worlds.size(), EntityFactory.getInstance().getServer().getWorlds().size());
     }
 
     @Test
     public void testCommandEnd() {
-        Location loc1 = player1.getLocation();
-        Location loc2 = player2.getLocation();
+        WorldLocation loc1 = player1.getLocation();
+        WorldLocation loc2 = player2.getLocation();
 
-        Assertions.assertTrue(manager.processCommand(player1, "raids", Arrays.asList("start", "arena_1"), allPerms));
+        Assertions.assertTrue(manager.processCommand(player1, "raids", Arrays.asList("start", "example"), allPerms));
 
         Assertions.assertTrue(manager.isPartyQueued(party1.getId()));
 
@@ -276,7 +258,7 @@ public class TestRaidsManager {
 
         Assertions.assertTrue(manager.processCommand(player1, "raids", Collections.singletonList("reload"), allPerms));
 
-        Assertions.assertEquals(2, manager.getAvailableRaids().size());
+        Assertions.assertEquals(1, manager.getAvailableRaids().size());
     }
 
     @Test
@@ -286,10 +268,10 @@ public class TestRaidsManager {
 
     @Test
     public void testCommandExit() {
-        Location loc1 = player1.getLocation();
-        Location loc2 = player2.getLocation();
+        WorldLocation loc1 = player1.getLocation();
+        WorldLocation loc2 = player2.getLocation();
 
-        Assertions.assertTrue(manager.processCommand(player1, "raids", Arrays.asList("start", "arena_1"), allPerms));
+        Assertions.assertTrue(manager.processCommand(player1, "raids", Arrays.asList("start", "example"), allPerms));
 
         Assertions.assertTrue(manager.isPartyQueued(party1.getId()));
 
@@ -323,10 +305,10 @@ public class TestRaidsManager {
 
     @Test
     public void testCleanCycle() {
-        Location loc1 = player1.getLocation();
-        Location loc2 = player2.getLocation();
+        WorldLocation loc1 = player1.getLocation();
+        WorldLocation loc2 = player2.getLocation();
 
-        Assertions.assertTrue(manager.processCommand(player1, "raids", Arrays.asList("start", "arena_1"), allPerms));
+        Assertions.assertTrue(manager.processCommand(player1, "raids", Arrays.asList("start", "example"), allPerms));
 
         Assertions.assertTrue(manager.isPartyQueued(party1.getId()));
 
@@ -364,9 +346,96 @@ public class TestRaidsManager {
 
         try {
             Thread.sleep(20000);
-        } catch (Throwable t) {
+        } catch (Throwable ignored) {
         }
 
         Assertions.assertFalse(manager.getActiveRaids().contains(world));
+    }
+
+    @Test
+    public void testCommandPackage() throws IOException {
+        // Create a temporary world
+        File worldDir = new File(EntityFactory.getInstance().getServer().getWorldContainer(), "temp");
+        File childDir = new File(worldDir, "child");
+        childDir.mkdirs();
+        File testFile = new File(childDir, "test.txt");
+
+        try (FileOutputStream fos = new FileOutputStream(testFile)) {
+            fos.write(UUID.randomUUID().toString().getBytes());
+        }
+
+        WorldCreator creator = new WorldCreator("temp");
+        EntityFactory.getInstance().getServer().createWorld(creator);
+
+        Assertions.assertFalse(manager.getAvailableDungeons().contains("new-dungeon"));
+
+        Assertions.assertTrue(manager.processCommand(player2, "raids", Arrays.asList("package", "temp", "new-dungeon"), allPerms));
+
+        Assertions.assertTrue(manager.getAvailableDungeons().contains("new-dungeon"));
+    }
+
+    @Test
+    public void testCommandPackageFailAlreadyExists() throws IOException, InterruptedException {
+        // Create a temporary world
+        File worldDir = new File(EntityFactory.getInstance().getServer().getWorldContainer(), "temp");
+        File childDir = new File(worldDir, "child");
+        childDir.mkdirs();
+        File testFile = new File(childDir, "test.txt");
+
+        try (FileOutputStream fos = new FileOutputStream(testFile)) {
+            fos.write(UUID.randomUUID().toString().getBytes());
+        }
+
+        WorldCreator creator = new WorldCreator("temp");
+        EntityFactory.getInstance().getServer().createWorld(creator);
+
+        Assertions.assertFalse(manager.getAvailableDungeons().contains("new-dungeon-1"));
+
+        Assertions.assertTrue(manager.processCommand(player2, "raids", Arrays.asList("package", "temp", "new-dungeon-1"), allPerms));
+
+        Assertions.assertTrue(manager.getAvailableDungeons().contains("new-dungeon-1"));
+
+        long origDungeonTimestamp = new File(new File(manager.getDataDirectory(), "dungeons"), "new-dungeon-1.zip").lastModified();
+
+        Thread.sleep(2000);
+
+        Assertions.assertTrue(manager.processCommand(player2, "raids", Arrays.asList("package", "temp", "new-dungeon-1"), allPerms));
+
+        long newDungeonTimestamp = new File(new File(manager.getDataDirectory(), "dungeons"), "new-dungeon-1.zip").lastModified();
+
+        Assertions.assertEquals(origDungeonTimestamp, newDungeonTimestamp);
+    }
+
+
+    @Test
+    public void testCommandPackageUpdate() throws IOException, InterruptedException {
+        // Create a temporary world
+        File worldDir = new File(EntityFactory.getInstance().getServer().getWorldContainer(), "temp");
+        File childDir = new File(worldDir, "child");
+        childDir.mkdirs();
+        File testFile = new File(childDir, "test.txt");
+
+        try (FileOutputStream fos = new FileOutputStream(testFile)) {
+            fos.write(UUID.randomUUID().toString().getBytes());
+        }
+
+        WorldCreator creator = new WorldCreator("temp");
+        EntityFactory.getInstance().getServer().createWorld(creator);
+
+        Assertions.assertFalse(manager.getAvailableDungeons().contains("new-dungeon-2"));
+
+        Assertions.assertTrue(manager.processCommand(player2, "raids", Arrays.asList("package", "temp", "new-dungeon-2"), allPerms));
+
+        Assertions.assertTrue(manager.getAvailableDungeons().contains("new-dungeon-2"));
+
+        long origDungeonTimestamp = new File(new File(manager.getDataDirectory(), "dungeons"), "new-dungeon-2.zip").lastModified();
+
+        Thread.sleep(2000);
+
+        Assertions.assertTrue(manager.processCommand(player2, "raids", Arrays.asList("package", "temp", "new-dungeon-2", "-f"), allPerms));
+
+        long newDungeonTimestamp = new File(new File(manager.getDataDirectory(), "dungeons"), "new-dungeon-2.zip").lastModified();
+
+        Assertions.assertNotEquals(origDungeonTimestamp, newDungeonTimestamp);
     }
 }

@@ -1,7 +1,5 @@
 package com.dreamcove.minecraft.raids.api;
 
-import org.bukkit.Location;
-
 import java.util.UUID;
 
 public interface Player extends MessageReceiver {
@@ -10,9 +8,11 @@ public interface Player extends MessageReceiver {
 
     UUID getUniqueId();
 
-    Location getLocation();
+    WorldLocation getLocation();
 
-    void teleport(Location location);
+    void teleport(WorldLocation location);
 
     World getWorld();
+
+    int getLevel();
 }

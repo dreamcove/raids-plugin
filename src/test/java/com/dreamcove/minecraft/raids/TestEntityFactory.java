@@ -1,17 +1,13 @@
 package com.dreamcove.minecraft.raids;
 
-import com.dreamcove.minecraft.raids.api.EntityFactory;
-import com.dreamcove.minecraft.raids.api.Player;
-import com.dreamcove.minecraft.raids.api.Server;
-import com.dreamcove.minecraft.raids.api.World;
+import com.dreamcove.minecraft.raids.api.*;
+import com.dreamcove.minecraft.raids.config.Point;
 import org.bukkit.Difficulty;
-import org.bukkit.Location;
 import org.bukkit.WorldCreator;
-import org.bukkit.entity.Entity;
+import org.bukkit.entity.EntityType;
 
 import java.io.File;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.logging.Logger;
@@ -34,7 +30,7 @@ public class TestEntityFactory extends EntityFactory {
 
         private final String name;
         private final UUID uniqueId = UUID.randomUUID();
-        private Location location = new Location(null, 0, 0, 0);
+        private WorldLocation location = new WorldLocation(null, new Point(0, 0, 0));
         private World world;
 
         public TestPlayer(String name) {
@@ -57,12 +53,12 @@ public class TestEntityFactory extends EntityFactory {
         }
 
         @Override
-        public Location getLocation() {
+        public WorldLocation getLocation() {
             return location;
         }
 
         @Override
-        public void teleport(Location location) {
+        public void teleport(WorldLocation location) {
             this.location = location;
         }
 
@@ -71,16 +67,21 @@ public class TestEntityFactory extends EntityFactory {
             return world;
         }
 
+        @Override
+        public int getLevel() {
+            return 1;
+        }
+
         public void setWorld(World world) {
             this.world = world;
         }
     }
 
-    class TestWorld implements World {
+    static class TestWorld implements World {
 
         private final String name;
         private final List<Player> players = new ArrayList<>();
-        private Difficulty difficulty;
+        private WorldLocation spawnLocation;
 
         public TestWorld(String name) {
             this.name = name;
@@ -102,13 +103,21 @@ public class TestEntityFactory extends EntityFactory {
 
         @Override
         public File getWorldFolder() {
-            return new File("test-data", getName());
+            return new File(new File(new File(new File("target"), "test-data"), "worlds"), getName());
         }
 
 
         @Override
-        public Location getSpawnLocation() {
-            return new Location(null, 10, 10, 10);
+        public WorldLocation getSpawnLocation() {
+            if (spawnLocation == null) {
+                spawnLocation = new WorldLocation(this, new Point(10, 10, 10));
+            }
+            return spawnLocation;
+        }
+
+        @Override
+        public void setSpawnLocation(WorldLocation location) {
+            this.spawnLocation = location;
         }
 
 
@@ -119,13 +128,13 @@ public class TestEntityFactory extends EntityFactory {
 
 
         @Override
-        public List<Entity> getEntities() {
-            return Collections.EMPTY_LIST;
+        public void setDifficulty(Difficulty difficulty) {
+            // Not implemented
         }
 
         @Override
-        public void setDifficulty(Difficulty difficulty) {
-            this.difficulty = difficulty;
+        public void spawnEntity(EntityType type, double x, double y, double z) {
+            // Not implemented
         }
 
         @Override
@@ -136,10 +145,10 @@ public class TestEntityFactory extends EntityFactory {
 
     }
 
-    class TestServer implements Server {
+    static class TestServer implements Server {
 
-        List<Player> players = new ArrayList<Player>();
-        List<World> worlds = new ArrayList<World>();
+        List<Player> players = new ArrayList<>();
+        List<World> worlds = new ArrayList<>();
 
         protected void addPlayer(Player player) {
             players.add(player);
@@ -156,7 +165,7 @@ public class TestEntityFactory extends EntityFactory {
 
         @Override
         public List<World> getWorlds() {
-            return new ArrayList<World>(worlds);
+            return new ArrayList<>(worlds);
         }
 
 
@@ -193,46 +202,32 @@ public class TestEntityFactory extends EntityFactory {
             World w = new TestWorld(creator.name());
             worlds.add(w);
 
+            w.getWorldFolder().mkdirs();
+
             return w;
         }
 
         @Override
         public File getWorldContainer() {
-            return new File("test-data");
+            return new File(new File(new File("target"), "test-data"), "worlds");
         }
 
         @Override
         public void delayRunnable(Runnable runnable, long ticks) {
-            Thread t = new Thread() {
-                @Override
-                public void run() {
-                    try {
-                        sleep(1000 * (ticks / 20));
-                        runnable.run();
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
+            Thread t = new Thread(() -> {
+                try {
+                    Thread.sleep(1000 * (ticks / 20));
+                    runnable.run();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
                 }
-            };
+            });
             t.start();
         }
 
         @Override
-        public void scheduleRunnable(Runnable runnable, long everyTicks) {
-            Thread t = new Thread() {
-                @Override
-                public void run() {
-                    try {
-                        sleep(1000 * (everyTicks / 20));
-                        runnable.run();
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
-                }
-            };
-            t.start();
+        public void dispatchCommand(String command) {
+            Logger.getLogger(this.getClass().getName()).info("Dispatching command: " + command);
         }
-
-
     }
 }

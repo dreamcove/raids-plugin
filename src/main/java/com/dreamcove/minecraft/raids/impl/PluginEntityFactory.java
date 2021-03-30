@@ -1,13 +1,13 @@
 package com.dreamcove.minecraft.raids.impl;
 
-import com.dreamcove.minecraft.raids.api.EntityFactory;
-import com.dreamcove.minecraft.raids.api.Player;
-import com.dreamcove.minecraft.raids.api.Server;
-import com.dreamcove.minecraft.raids.api.World;
+import com.dreamcove.minecraft.raids.api.*;
+import com.dreamcove.minecraft.raids.config.Point;
 import org.bukkit.Difficulty;
+import org.bukkit.GameRule;
 import org.bukkit.Location;
 import org.bukkit.WorldCreator;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.EntityType;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 
@@ -22,6 +22,25 @@ public class PluginEntityFactory extends EntityFactory {
 
     public PluginEntityFactory(JavaPlugin plugin) {
         this.plugin = plugin;
+    }
+
+    private Location toLocation(WorldLocation worldLoc) {
+        return new Location(
+                ((PluginWorld) worldLoc.getWorld()).getWorld(),
+                worldLoc.getPoint().getX(),
+                worldLoc.getPoint().getY(),
+                worldLoc.getPoint().getZ()
+        );
+    }
+
+    private WorldLocation toWorldLocation(Location location) {
+        return new WorldLocation(
+                new PluginWorld(
+                        location.getWorld()),
+                new Point(
+                        location.getX(),
+                        location.getY(),
+                        location.getZ()));
     }
 
     @Override
@@ -52,18 +71,23 @@ public class PluginEntityFactory extends EntityFactory {
         }
 
         @Override
-        public Location getLocation() {
-            return player.getLocation();
+        public WorldLocation getLocation() {
+            return toWorldLocation(player.getLocation());
         }
 
         @Override
-        public void teleport(Location location) {
-            player.teleport(location);
+        public void teleport(WorldLocation location) {
+            player.teleport(toLocation(location));
         }
 
         @Override
         public World getWorld() {
             return new PluginWorld(player.getWorld());
+        }
+
+        @Override
+        public int getLevel() {
+            return player.getLevel();
         }
 
         @Override
@@ -89,8 +113,13 @@ public class PluginEntityFactory extends EntityFactory {
         }
 
         @Override
-        public Location getSpawnLocation() {
-            return world.getSpawnLocation();
+        public WorldLocation getSpawnLocation() {
+            return toWorldLocation(world.getSpawnLocation());
+        }
+
+        @Override
+        public void setSpawnLocation(WorldLocation location) {
+            world.setSpawnLocation(toLocation(location));
         }
 
         @Override
@@ -101,18 +130,31 @@ public class PluginEntityFactory extends EntityFactory {
         }
 
         @Override
-        public List<Entity> getEntities() {
-            return world.getEntities();
-        }
-
-        @Override
         public void setDifficulty(Difficulty difficulty) {
             world.setDifficulty(difficulty);
         }
 
         @Override
+        public void spawnEntity(EntityType type, double x, double y, double z) {
+            world.spawnEntity(new Location(world, x, y, z), type);
+        }
+
+        @Override
         public void removeAllEntities() {
             world.getEntities().forEach(Entity::remove);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj instanceof PluginWorld) {
+                return ((PluginWorld) obj).getWorld().equals(world);
+            }
+
+            return false;
+        }
+
+        protected org.bukkit.World getWorld() {
+            return world;
         }
     }
 
@@ -127,7 +169,7 @@ public class PluginEntityFactory extends EntityFactory {
         @Override
         public List<World> getWorlds() {
             return plugin.getServer().getWorlds().stream()
-                    .map(w -> new PluginWorld(w))
+                    .map(PluginWorld::new)
                     .collect(Collectors.toList());
         }
 
@@ -152,7 +194,11 @@ public class PluginEntityFactory extends EntityFactory {
 
         @Override
         public World createWorld(WorldCreator creator) {
-            World w = new PluginWorld(plugin.getServer().createWorld(creator));
+            PluginWorld w = new PluginWorld(plugin.getServer().createWorld(creator));
+
+            w.setDifficulty(Difficulty.PEACEFUL);
+            w.getWorld().setGameRule(GameRule.DO_MOB_SPAWNING, false);
+            w.getWorld().setDifficulty(Difficulty.NORMAL);
 
             return w;
         }
@@ -174,15 +220,8 @@ public class PluginEntityFactory extends EntityFactory {
         }
 
         @Override
-        public void scheduleRunnable(Runnable runnable, long everyTicks) {
-            new BukkitRunnable() {
-
-                @Override
-                public void run() {
-
-                }
-            }.runTaskTimer(plugin, 0, everyTicks);
-
+        public void dispatchCommand(String command) {
+            plugin.getServer().dispatchCommand(plugin.getServer().getConsoleSender(), command);
         }
     }
 }

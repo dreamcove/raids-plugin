@@ -11,11 +11,6 @@ import java.util.stream.Collectors;
 
 public class PartiesPartyFactory extends PartyFactory {
     @Override
-    public boolean arePartiesEnabled() {
-        return true;
-    }
-
-    @Override
     public Party getParty(UUID partyId) {
         return new PartiesParty(Parties.getApi().getParty(partyId));
     }
@@ -23,7 +18,7 @@ public class PartiesPartyFactory extends PartyFactory {
     @Override
     public List<Party> getOnlineParties() {
         return Parties.getApi().getOnlineParties().stream()
-                .map(p -> new PartiesParty(p))
+                .map(PartiesParty::new)
                 .collect(Collectors.toList());
     }
 
@@ -31,12 +26,12 @@ public class PartiesPartyFactory extends PartyFactory {
     public UUID getPartyForPlayer(UUID playerId) {
         return getOnlineParties().stream()
                 .filter(p -> p.getMembers().contains(playerId))
-                .map(p -> p.getId())
+                .map(Party::getId)
                 .findFirst()
-                .get();
+                .orElse(null);
     }
 
-    private class PartiesParty implements Party {
+    private static class PartiesParty implements Party {
         com.alessiodp.parties.api.interfaces.Party party;
 
         PartiesParty(com.alessiodp.parties.api.interfaces.Party party) {
@@ -50,7 +45,7 @@ public class PartiesPartyFactory extends PartyFactory {
 
         @Override
         public List<UUID> getMembers() {
-            return new ArrayList<UUID>(party.getMembers());
+            return new ArrayList<>(party.getMembers());
         }
 
         @Override

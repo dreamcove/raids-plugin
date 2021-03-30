@@ -2,19 +2,7 @@ package com.dreamcove.minecraft.raids.config;
 
 public class JoinCriteria {
     private int minimumPartySize;
-    private int minimumRank;
-    private int averagePartyRank;
-
-    public JoinCriteria() {
-    }
-
-    public int getAveragePartyRank() {
-        return averagePartyRank;
-    }
-
-    public void setAveragePartyRank(int averagePartyRank) {
-        this.averagePartyRank = averagePartyRank;
-    }
+    private int minimumLevel;
 
     public int getMinimumPartySize() {
         return minimumPartySize;
@@ -24,11 +12,11 @@ public class JoinCriteria {
         this.minimumPartySize = minimumPartySize;
     }
 
-    public int getMinimumRank() {
-        return minimumRank;
+    public int getMinimumLevel() {
+        return minimumLevel;
     }
 
-    public void setMinimumRank(int minimumRank) {
-        this.minimumRank = minimumRank;
+    public void setMinimumLevel(int minimumLevel) {
+        this.minimumLevel = minimumLevel;
     }
 }
