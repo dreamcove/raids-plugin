@@ -103,7 +103,7 @@ public class TestEntityFactory extends EntityFactory {
 
         @Override
         public File getWorldFolder() {
-            return new File(new File(new File("test-data"), "worlds"), getName());
+            return new File(new File(new File(new File("target"), "test-data"), "worlds"), getName());
         }
 
 
@@ -207,7 +207,7 @@ public class TestEntityFactory extends EntityFactory {
 
         @Override
         public File getWorldContainer() {
-            return new File(new File("test-data"), "worlds");
+            return new File(new File(new File("target"), "test-data"), "worlds");
         }
 
         @Override
