@@ -57,6 +57,31 @@ public class TestRaidsManager {
 
     @AfterAll
     public static void unload() throws IOException {
+        // Start a raid to validate we're shutting down properly
+        WorldLocation loc1 = player1.getLocation();
+        WorldLocation loc2 = player2.getLocation();
+
+        Assertions.assertTrue(manager.processCommand(player1, "raids", Arrays.asList("start", "example"), allPerms));
+
+        Assertions.assertTrue(manager.isPartyQueued(party1.getId()));
+
+        TestEntityFactory.TestWorld world = (TestEntityFactory.TestWorld) EntityFactory.getInstance().getServer().getWorld(manager.getQueuedWorld(party1.getId()));
+
+        try {
+            Thread.sleep(6 * 1000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        Assertions.assertNotEquals(loc1, player1.getLocation());
+        Assertions.assertNotEquals(loc2, player2.getLocation());
+
+        // Minor nudge for testing purposes
+        player1.setWorld(world);
+        player2.setWorld(world);
+        world.addPlayer(player1);
+        world.addPlayer(player2);
+
         // Test shutdown
         Assertions.assertNotEquals(0, manager.getActiveRaids().size());
         Assertions.assertTrue(EntityFactory.getInstance().getServer().getWorldContainer().listFiles().length > 1);
