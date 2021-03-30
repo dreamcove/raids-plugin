@@ -130,18 +130,13 @@ public class PluginEntityFactory extends EntityFactory {
         }
 
         @Override
-        public List<Entity> getEntities() {
-            return world.getEntities();
-        }
-
-        @Override
         public void setDifficulty(Difficulty difficulty) {
             world.setDifficulty(difficulty);
         }
 
         @Override
-        public Entity spawnEntity(EntityType type, double x, double y, double z) {
-            return world.spawnEntity(new Location(world, x, y, z), type);
+        public void spawnEntity(EntityType type, double x, double y, double z) {
+            world.spawnEntity(new Location(world, x, y, z), type);
         }
 
         @Override
@@ -227,18 +222,6 @@ public class PluginEntityFactory extends EntityFactory {
         @Override
         public void dispatchCommand(String command) {
             plugin.getServer().dispatchCommand(plugin.getServer().getConsoleSender(), command);
-        }
-
-        @Override
-        public void scheduleRunnable(Runnable runnable, long everyTicks) {
-            new BukkitRunnable() {
-
-                @Override
-                public void run() {
-
-                }
-            }.runTaskTimer(plugin, 20, everyTicks);
-
         }
     }
 }

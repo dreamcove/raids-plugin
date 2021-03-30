@@ -28,7 +28,7 @@ public class TestRaidsManager {
     private static TestPartyFactory.TestParty party1;
 
     @BeforeAll
-    public static void load() throws IOException {
+    public static void load() {
         allPerms = RaidsManager.ALL_COMMANDS.stream().map(RaidsManager::getPermission).collect(Collectors.toList());
 
         EntityFactory.setInstance(new TestEntityFactory());
@@ -84,12 +84,12 @@ public class TestRaidsManager {
 
         // Test shutdown
         Assertions.assertNotEquals(0, manager.getActiveRaids().size());
-        Assertions.assertTrue(EntityFactory.getInstance().getServer().getWorldContainer().listFiles().length > 1);
+        Assertions.assertTrue(Objects.requireNonNull(EntityFactory.getInstance().getServer().getWorldContainer().listFiles()).length > 1);
 
         manager.shutdown();
 
         Assertions.assertEquals(0, manager.getActiveRaids().size());
-        Assertions.assertEquals(1, EntityFactory.getInstance().getServer().getWorldContainer().listFiles().length);
+        Assertions.assertEquals(1, Objects.requireNonNull(EntityFactory.getInstance().getServer().getWorldContainer().listFiles()).length);
 
         File testDirectory = new File("test-data");
 
@@ -329,7 +329,7 @@ public class TestRaidsManager {
 
         try {
             Thread.sleep(20000);
-        } catch (Throwable t) {
+        } catch (Throwable ignored) {
         }
 
         Assertions.assertFalse(manager.getActiveRaids().contains(world));
@@ -343,21 +343,12 @@ public class TestRaidsManager {
         childDir.mkdirs();
         File testFile = new File(childDir, "test.txt");
 
-        FileOutputStream fos = null;
-        try {
-            fos = new FileOutputStream(testFile);
+        try (FileOutputStream fos = new FileOutputStream(testFile)) {
             fos.write(UUID.randomUUID().toString().getBytes());
-        } finally {
-            if (fos != null) {
-                try {
-                    fos.close();
-                } catch (IOException e) {
-                }
-            }
         }
 
         WorldCreator creator = new WorldCreator("temp");
-        World w = EntityFactory.getInstance().getServer().createWorld(creator);
+        EntityFactory.getInstance().getServer().createWorld(creator);
 
         Assertions.assertFalse(manager.getAvailableDungeons().contains("new-dungeon"));
 

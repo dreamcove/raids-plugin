@@ -6,6 +6,7 @@ import org.bukkit.configuration.file.FileConfiguration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.logging.Logger;
 
 public class RaidsConfig {
@@ -21,6 +22,7 @@ public class RaidsConfig {
 
         ConfigurationSection section = fileConfig.getConfigurationSection("raids");
 
+        assert section != null;
         for (String raidName : section.getKeys(false)) {
             try {
                 ConfigurationSection raidSection = section.getConfigurationSection(raidName);
@@ -32,11 +34,12 @@ public class RaidsConfig {
                 raid.setDungeonName(raidSection.getString("dungeon", "arena"));
                 raid.setDifficulty(raidSection.getString("difficulty", "normal"));
                 raid.setJoinIn(raidSection.getInt("join-in", 15));
-                raid.setSpawnLocation(Point.parse(raidSection.getString("spawn-location", "0, 0, 0")));
+                raid.setSpawnLocation(Point.parse(Objects.requireNonNull(raidSection.getString("spawn-location", "0, 0, 0"))));
 
                 if (raidSection.getKeys(false).contains("on-startup")) {
                     ConfigurationSection onStartUpSection = raidSection.getConfigurationSection("on-startup");
 
+                    assert onStartUpSection != null;
                     raid.getOnStartup().setClearMobs(onStartUpSection.getBoolean("clear-mobs", true));
                     onStartUpSection.getStringList("commands").forEach(raid.getOnStartup()::addCommand);
 
@@ -46,8 +49,9 @@ public class RaidsConfig {
                         for (String key : mobs.getKeys(false)) {
                             ConfigurationSection mobSection = mobs.getConfigurationSection(key);
 
+                            assert mobSection != null;
                             String mobType = mobSection.getString("type");
-                            Point location = Point.parse(mobSection.getString("location"));
+                            Point location = Point.parse(Objects.requireNonNull(mobSection.getString("location")));
                             Mob mob = new Mob(mobType, location);
 
                             raid.getOnStartup().addMob(mob);
@@ -58,6 +62,7 @@ public class RaidsConfig {
                 if (raidSection.getKeys(false).contains("join-criteria")) {
                     ConfigurationSection joinSection = raidSection.getConfigurationSection("join-criteria");
 
+                    assert joinSection != null;
                     raid.getJoinCriteria().setMinimumLevel(joinSection.getInt("minimum-rank"));
                     raid.getJoinCriteria().setMinimumPartySize(joinSection.getInt("minimum-party-size"));
                 }

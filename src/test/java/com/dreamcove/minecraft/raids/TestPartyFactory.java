@@ -13,11 +13,6 @@ public class TestPartyFactory extends PartyFactory {
     private final List<Party> parties = new ArrayList<>();
 
     @Override
-    public boolean arePartiesEnabled() {
-        return true;
-    }
-
-    @Override
     public Party getParty(UUID partyId) {
         return parties.stream()
                 .filter(p -> p.getId().equals(partyId))

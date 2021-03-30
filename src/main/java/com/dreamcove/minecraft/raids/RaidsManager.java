@@ -14,6 +14,7 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
@@ -35,7 +36,7 @@ public class RaidsManager {
     public static final String CMD_EXIT = "exit";
     public static final String CMD_HELP = "help";
     public static final String CMD_PACKAGE = "package";
-    public static final List<String> ALL_COMMANDS = Arrays.asList(
+    protected static final List<String> ALL_COMMANDS = Arrays.asList(
             CMD_RELOAD,
             CMD_START,
             CMD_CANCEL,
@@ -44,6 +45,7 @@ public class RaidsManager {
             CMD_PACKAGE,
             CMD_HELP
     );
+    private static final String CONFIG_NAME = "config.yml";
     private final Map<UUID, String> queuedParties = Collections.synchronizedMap(new HashMap<>());
     private final Map<UUID, WorldLocation> lastLocation = Collections.synchronizedMap(new HashMap<>());
     private final File dataDirectory;
@@ -85,14 +87,10 @@ public class RaidsManager {
 
     public synchronized RaidsConfig getRaidsConfig() {
         if (raidsConfig == null) {
-            InputStream is = null;
-            BufferedReader br = null;
 
-            File file = new File(getDataDirectory(), "config.yml");
+            File file = new File(getDataDirectory(), CONFIG_NAME);
 
-            try {
-                is = new FileInputStream(file);
-                br = new BufferedReader(new InputStreamReader(is));
+            try (InputStream is = new FileInputStream(file); BufferedReader br = new BufferedReader(new InputStreamReader(is))) {
 
                 StringBuilder result = new StringBuilder();
                 String line;
@@ -106,21 +104,7 @@ public class RaidsManager {
 
                 raidsConfig = RaidsConfig.from(yamlConfig);
             } catch (Exception ioExc) {
-                getLogger().severe("Error loading configuration");
-                getLogger().throwing("RaidsManager", "getRaidsConfig", ioExc);
-            } finally {
-                if (br != null) {
-                    try {
-                        br.close();
-                    } catch (IOException ioExc) {
-                    }
-                }
-                if (is != null) {
-                    try {
-                        is.close();
-                    } catch (IOException ioExc) {
-                    }
-                }
+                getLogger().log(Level.SEVERE, "Error loading configuration", ioExc);
             }
 
             if (raidsConfig == null) {
@@ -150,10 +134,7 @@ public class RaidsManager {
         } else {
             zos.putNextEntry(new ZipEntry(entryName));
 
-            FileInputStream fis = null;
-
-            try {
-                fis = new FileInputStream(file);
+            try (FileInputStream fis = new FileInputStream(file)) {
 
                 byte[] buffer = new byte[1024];
                 int read;
@@ -163,13 +144,6 @@ public class RaidsManager {
                 }
 
                 zos.closeEntry();
-            } finally {
-                if (fis != null) {
-                    try {
-                        fis.close();
-                    } catch (IOException e) {
-                    }
-                }
             }
         }
     }
@@ -199,6 +173,7 @@ public class RaidsManager {
                 try {
                     zos.close();
                 } catch (Throwable t) {
+                    getLogger().log(Level.FINE, "Error input stream", t);
                 }
             }
         }
@@ -459,7 +434,7 @@ public class RaidsManager {
                                         int minLevel = party.getMembers().stream()
                                                 .map(u -> EntityFactory.getInstance().getServer().getPlayer(u))
                                                 .map(Player::getLevel)
-                                                .reduce(Integer.MAX_VALUE, (acc, n) -> Math.min(acc, n));
+                                                .reduce(Integer.MAX_VALUE, Math::min);
 
                                         if (party.getMembers().size() < raid.getJoinCriteria().getMinimumPartySize()) {
                                             receiver.sendMessage("Your party must have " + raid.getJoinCriteria().getMinimumPartySize() + " members to start raid");
@@ -556,12 +531,7 @@ public class RaidsManager {
                 throw new IOException("Dungeon " + dungeonName + " not found");
             }
 
-            InputStream is = null;
-            OutputStream os = null;
-
-            try {
-                is = url.openStream();
-                os = new FileOutputStream(dungeonFile);
+            try (InputStream is = url.openStream(); OutputStream os = new FileOutputStream(dungeonFile)) {
 
                 byte[] buffer = new byte[1024];
                 int read;
@@ -569,29 +539,13 @@ public class RaidsManager {
                 while ((read = is.read(buffer)) > 0) {
                     os.write(buffer, 0, read);
                 }
-            } finally {
-                try {
-                    if (os != null) {
-                        os.close();
-                    }
-                } catch (IOException e) {
-                }
-                try {
-                    if (is != null) {
-                        is.close();
-                    }
-                } catch (IOException e) {
-                }
             }
         }
 
         String worldName = getRaidsConfig().getRaidWorldPrefix() + "_" + UUID.randomUUID().toString();
         File worldDir = new File(getServer().getWorldContainer(), worldName);
 
-        ZipInputStream zis = null;
-
-        try {
-            zis = new ZipInputStream(new FileInputStream(dungeonFile));
+        try (ZipInputStream zis = new ZipInputStream(new FileInputStream(dungeonFile))) {
 
             ZipEntry entry;
 
@@ -603,33 +557,17 @@ public class RaidsManager {
                     } else {
                         file.getParentFile().mkdirs();
 
-                        FileOutputStream fos = null;
-                        try {
-                            fos = new FileOutputStream(file);
+                        try (FileOutputStream fos = new FileOutputStream(file)) {
                             byte[] buffer = new byte[1024];
                             int read;
 
                             while ((read = zis.read(buffer)) > 0) {
                                 fos.write(buffer, 0, read);
                             }
-                        } finally {
-                            if (fos != null) {
-                                try {
-                                    fos.close();
-                                } catch (IOException e) {
-                                }
-                            }
                         }
                     }
                 }
                 zis.closeEntry();
-            }
-        } finally {
-            if (zis != null) {
-                try {
-                    zis.close();
-                } catch (IOException e) {
-                }
             }
         }
 
@@ -654,7 +592,7 @@ public class RaidsManager {
 
         world.setDifficulty(Difficulty.valueOf(raid.getDifficulty().toUpperCase()));
 
-        raid.getOnStartup().getMobs().stream()
+        raid.getOnStartup().getMobs()
                 .forEach(m -> {
                     getLogger().info("Spawning " + m.getType());
                     world.spawnEntity(
@@ -696,12 +634,7 @@ public class RaidsManager {
     private void downloadResource(URL resource, File file) throws IOException {
         file.getParentFile().mkdirs();
 
-        InputStream is = null;
-        FileOutputStream fos = null;
-
-        try {
-            is = resource.openStream();
-            fos = new FileOutputStream(file);
+        try (InputStream is = resource.openStream(); FileOutputStream fos = new FileOutputStream(file)) {
 
             byte[] buffer = new byte[1024];
             int read;
@@ -709,28 +642,15 @@ public class RaidsManager {
             while ((read = is.read(buffer)) > 0) {
                 fos.write(buffer, 0, read);
             }
-        } finally {
-            if (is != null) {
-                try {
-                    is.close();
-                } catch (IOException e) {
-                }
-            }
-            if (fos != null) {
-                try {
-                    fos.close();
-                } catch (IOException e) {
-                }
-            }
         }
     }
 
     private void loadDefaults() throws IOException, InvalidConfigurationException {
-        File configFile = new File(getDataDirectory(), "config.yml");
+        File configFile = new File(getDataDirectory(), CONFIG_NAME);
 
         if (!configFile.exists()) {
             try {
-                downloadResource(RaidsManager.class.getClassLoader().getResource("config.yml"), configFile);
+                downloadResource(RaidsManager.class.getClassLoader().getResource(CONFIG_NAME), configFile);
                 downloadResource(
                         RaidsManager.class.getClassLoader().getResource("dungeons/arena.zip"), new File(getDungeonDirectory(), "arena.zip"));
             } catch (IOException e) {

@@ -4,12 +4,10 @@ import com.dreamcove.minecraft.raids.api.*;
 import com.dreamcove.minecraft.raids.config.Point;
 import org.bukkit.Difficulty;
 import org.bukkit.WorldCreator;
-import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 
 import java.io.File;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.logging.Logger;
@@ -83,7 +81,6 @@ public class TestEntityFactory extends EntityFactory {
 
         private final String name;
         private final List<Player> players = new ArrayList<>();
-        private Difficulty difficulty;
         private WorldLocation spawnLocation;
 
         public TestWorld(String name) {
@@ -131,20 +128,13 @@ public class TestEntityFactory extends EntityFactory {
 
 
         @Override
-        public List<Entity> getEntities() {
-            return Collections.EMPTY_LIST;
-        }
-
-        @Override
         public void setDifficulty(Difficulty difficulty) {
-            this.difficulty = difficulty;
+            // Not implemented
         }
 
         @Override
-        public Entity spawnEntity(EntityType type, double x, double y, double z) {
+        public void spawnEntity(EntityType type, double x, double y, double z) {
             // Not implemented
-
-            return null;
         }
 
         @Override
@@ -155,10 +145,10 @@ public class TestEntityFactory extends EntityFactory {
 
     }
 
-    class TestServer implements Server {
+    static class TestServer implements Server {
 
-        List<Player> players = new ArrayList<Player>();
-        List<World> worlds = new ArrayList<World>();
+        List<Player> players = new ArrayList<>();
+        List<World> worlds = new ArrayList<>();
 
         protected void addPlayer(Player player) {
             players.add(player);
@@ -175,7 +165,7 @@ public class TestEntityFactory extends EntityFactory {
 
         @Override
         public List<World> getWorlds() {
-            return new ArrayList<World>(worlds);
+            return new ArrayList<>(worlds);
         }
 
 
@@ -222,17 +212,14 @@ public class TestEntityFactory extends EntityFactory {
 
         @Override
         public void delayRunnable(Runnable runnable, long ticks) {
-            Thread t = new Thread() {
-                @Override
-                public void run() {
-                    try {
-                        sleep(1000 * (ticks / 20));
-                        runnable.run();
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
+            Thread t = new Thread(() -> {
+                try {
+                    Thread.sleep(1000 * (ticks / 20));
+                    runnable.run();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
                 }
-            };
+            });
             t.start();
         }
 
@@ -240,23 +227,5 @@ public class TestEntityFactory extends EntityFactory {
         public void dispatchCommand(String command) {
             Logger.getLogger(this.getClass().getName()).info("Dispatching command: " + command);
         }
-
-        @Override
-        public void scheduleRunnable(Runnable runnable, long everyTicks) {
-            Thread t = new Thread() {
-                @Override
-                public void run() {
-                    try {
-                        sleep(1000 * (everyTicks / 20));
-                        runnable.run();
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
-                }
-            };
-            t.start();
-        }
-
-
     }
 }
