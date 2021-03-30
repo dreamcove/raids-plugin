@@ -4,9 +4,6 @@ public class JoinCriteria {
     private int minimumPartySize;
     private int minimumLevel;
 
-    public JoinCriteria() {
-    }
-
     public int getMinimumPartySize() {
         return minimumPartySize;
     }

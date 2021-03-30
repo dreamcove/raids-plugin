@@ -3,6 +3,7 @@ package com.dreamcove.minecraft.raids.config;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 
+import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -70,7 +71,11 @@ public class RaidsConfig {
 
                 result.addRaid(raid);
             } catch (Exception e) {
-                Logger.getLogger(RaidsConfig.class.getName()).log(Level.SEVERE, "Unable to load raid " + raidName, e);
+                Logger.getLogger(RaidsConfig.class.getName())
+                        .log(
+                                Level.SEVERE,
+                                MessageFormat.format("Unable to load raid {0}", raidName),
+                                e);
             }
         }
 
