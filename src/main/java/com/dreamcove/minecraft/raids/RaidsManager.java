@@ -46,9 +46,9 @@ public class RaidsManager {
             CMD_HELP
     );
     private static final String CONFIG_NAME = "config.yml";
-    private final Map<UUID, String> queuedParties = Collections.synchronizedMap(new HashMap<>());
     private final Map<UUID, WorldLocation> lastLocation = Collections.synchronizedMap(new HashMap<>());
     private final File dataDirectory;
+    private final List<ManagedWorld> managedWorlds = Collections.synchronizedList(new ArrayList<>());
     private Logger logger;
     private RaidsConfig raidsConfig;
     private boolean running;
@@ -79,7 +79,7 @@ public class RaidsManager {
         int cycle = Math.max(getRaidsConfig().getCleanCycle(), 5);
         EntityFactory.getInstance().getServer().delayRunnable(() -> {
             if (running) {
-                cleanRaids();
+                cleanManagedWorlds();
                 startScrubber();
             }
         }, cycle * 20L);
@@ -114,14 +114,6 @@ public class RaidsManager {
         }
 
         return raidsConfig;
-    }
-
-    private Logger getLogger() {
-        if (logger == null) {
-            logger = Logger.getLogger(RaidsManager.class.getName());
-        }
-
-        return logger;
     }
 
     private void packageFile(ZipOutputStream zos, File file, String entryName) throws IOException {
@@ -171,24 +163,46 @@ public class RaidsManager {
     public void shutdown() {
         running = false;
 
-        getActiveRaids().forEach(w -> {
-            w.getPlayers().forEach(p -> {
-                if (getLastLocation(p) != null) {
-                    p
-                            .getWorld()
-                            .getPlayers()
-                            .forEach(this::returnLastLocation);
-                }
-            });
-            try {
-                removeWorld(w);
-            } catch (IOException e) {
-                getLogger().severe("Error removing world " + w.getName());
-                getLogger().throwing("RaidsManager", "shutdown", e);
-            }
-        });
+        getServer().getWorlds().stream()
+                .filter(w -> w.getName().startsWith(raidsConfig.getRaidWorldPrefix()))
+                .forEach(w -> {
+                    w.getPlayers().forEach(this::returnLastLocation);
 
-        cleanRaids();
+                    try {
+                        removeWorld(w);
+                    } catch (IOException e) {
+                        getLogger().log(Level.SEVERE, "Unable to remove world " + w.getName(), e);
+                    }
+                });
+
+        managedWorlds.clear();
+    }
+
+    private Server getServer() {
+        return EntityFactory.getInstance().getServer();
+    }
+
+    public void returnLastLocation(Player player) {
+        if (lastLocation.get(player.getUniqueId()) != null) {
+            player.teleport(lastLocation.get(player.getUniqueId()));
+            lastLocation.remove(player.getUniqueId());
+        }
+    }
+
+    public void removeWorld(World world) throws IOException {
+        if (EntityFactory.getInstance().getServer().unloadWorld(world.getName())) {
+            getLogger().info("Removing raid " + world.getName());
+            FileUtilities.deleteFile(world.getWorldFolder());
+            getLogger().info(world.getName() + " removed.");
+        }
+    }
+
+    private Logger getLogger() {
+        if (logger == null) {
+            logger = Logger.getLogger(RaidsManager.class.getName());
+        }
+
+        return logger;
     }
 
     public void reload() {
@@ -274,63 +288,59 @@ public class RaidsManager {
         lastLocation.put(player.getUniqueId(), player.getLocation());
     }
 
-    public void returnLastLocation(Player player) {
-        if (lastLocation.get(player.getUniqueId()) != null) {
-            player.teleport(lastLocation.get(player.getUniqueId()));
-            lastLocation.remove(player.getUniqueId());
-        }
-    }
-
     public WorldLocation getLastLocation(Player player) {
         return lastLocation.get(player.getUniqueId());
     }
 
-    public String getQueuedWorld(UUID partyId) {
-        return queuedParties.get(partyId);
+    public RaidManagedWorld getRaidByParty(UUID partyId) {
+        return managedWorlds.stream()
+                .filter(w -> !w.isExpired())
+                .filter(w -> w instanceof RaidManagedWorld)
+                .map(w -> (RaidManagedWorld) w)
+                .filter(w -> w.getParty().getId().equals(partyId))
+                .findFirst()
+                .orElse(null);
     }
 
-    public void queueParty(UUID partyId, String worldName) {
-        queuedParties.put(partyId, worldName);
-    }
+    public void cleanManagedWorlds() {
+        // Trim our expired managed worlds out
+        Iterator<ManagedWorld> iter = managedWorlds.iterator();
 
-    public void dequeueParty(UUID partyId) {
-        queuedParties.remove(partyId);
-    }
+        while (iter.hasNext()) {
+            ManagedWorld world = iter.next();
 
-    public boolean isPartyQueued(UUID partyId) {
-        return queuedParties.containsKey(partyId);
-    }
-
-    public void cleanRaids() {
-        for (World w : getServer().getWorlds()) {
-            if (!queuedParties.containsValue(w.getName()) && w.getName().startsWith(getRaidsConfig().getRaidWorldPrefix()) && w.getPlayers().isEmpty()) {
-                getLogger().info("Removing unused dungeon - " + w.getName() + " (no players)");
-
-                try {
-                    removeWorld(w);
-                } catch (IOException ioExc) {
-                    getLogger().severe("Unable to remove " + w.getName());
-                    getLogger().throwing(RaidsManager.class.getName(), "cleanRaids", ioExc);
-                }
+            if (world.isExpired()) {
+                iter.remove();
             }
         }
-    }
 
-    public void removeWorld(World world) throws IOException {
-        if (EntityFactory.getInstance().getServer().unloadWorld(world.getName())) {
-            getLogger().info("Removing raid " + world.getName());
-            FileUtilities.deleteFile(world.getWorldFolder());
-            getLogger().info(world.getName() + " removed.");
-        }
-    }
+        List<String> activeWorldNames = managedWorlds.stream()
+                .map(ManagedWorld::getName)
+                .collect(Collectors.toList());
 
-    private Server getServer() {
-        return EntityFactory.getInstance().getServer();
+        // Worlds to remove
+        getServer().getWorlds().stream()
+                .filter(w -> w.getName().startsWith(getRaidsConfig().getRaidWorldPrefix()))
+                .filter(w -> !activeWorldNames.contains(w.getName()))
+                .forEach(w -> {
+                    getLogger().info("Removing unused world " + w.getName());
+
+                    try {
+                        removeWorld(w);
+                    } catch (IOException e) {
+                        getLogger().log(Level.WARNING, "Unable to remove " + w.getName(), e);
+                    }
+                });
     }
 
     public boolean cancelRaid(UUID partyId) {
-        if (isPartyQueued(partyId)) {
-            dequeueParty(partyId);
+        RaidManagedWorld w = getRaidByParty(partyId);
+
+        System.out.println(partyId);
+        System.out.println(w);
+        System.out.println(w.getState());
+        if (w != null && w.getState() == RaidManagedWorld.STATE_QUEUED) {
+            w.setState(RaidManagedWorld.STATE_CANCELED);
 
             PartyFactory.getInstance().getParty(partyId).broadcastMessage("Raid canceled");
 
@@ -341,9 +351,11 @@ public class RaidsManager {
     }
 
     public void startRaid(UUID partyId, World newWorld, Raid raid) {
-        queueParty(partyId, newWorld.getName());
-
         Party party = PartyFactory.getInstance().getParty(partyId);
+
+        RaidManagedWorld raidManagedWorld = new RaidManagedWorld(newWorld, raid, party);
+        raidManagedWorld.setState(RaidManagedWorld.STATE_QUEUED);
+        managedWorlds.add(raidManagedWorld);
 
         if (raid.getJoinIn() > 0) {
             party.broadcastMessage("Party is queued for a raid.");
@@ -489,12 +501,6 @@ public class RaidsManager {
                 .filter(r -> r.getName().equals(name))
                 .findFirst()
                 .orElse(null);
-    }
-
-    public List<World> getActiveRaids() {
-        return getServer().getWorlds().stream()
-                .filter(w -> w.getName().startsWith(getRaidsConfig().getRaidWorldPrefix()))
-                .collect(Collectors.toList());
     }
 
     private World generateDungeon(String dungeonName) throws IOException {
@@ -652,6 +658,13 @@ public class RaidsManager {
         }
     }
 
+    public ManagedWorld getManagedWorld(String name) {
+        return managedWorlds.stream()
+                .filter(w -> w.getName().equals(name))
+                .findFirst()
+                .orElse(null);
+    }
+
     class StartRaidRunnable implements Runnable {
         UUID partyId;
 
@@ -663,22 +676,17 @@ public class RaidsManager {
 
         @Override
         public void run() {
-            String worldName = getQueuedWorld(partyId);
-            if (worldName != null) {
-                Party party = PartyFactory.getInstance().getParty(partyId);
+            RaidManagedWorld world = getRaidByParty(partyId);
+            if (world != null) {
+                world.setState(RaidManagedWorld.STATE_STARTED);
+                getLogger().info("Sending party " + world.getParty().getName() + " to " + world.getName());
 
-                getLogger().info("Sending party " + party.getName() + " to " + getQueuedWorld(partyId));
-
-                World world = EntityFactory.getInstance().getServer().getWorld(getQueuedWorld(partyId));
-
-                party.getMembers().stream()
+                world.getParty().getMembers().stream()
                         .map(u -> getServer().getPlayer(u))
                         .forEach(p -> {
                             storeLastLocation(p);
-                            p.teleport(world.getSpawnLocation());
+                            p.teleport(world.getWorld().getSpawnLocation());
                         });
-
-                dequeueParty(partyId);
             }
         }
     }

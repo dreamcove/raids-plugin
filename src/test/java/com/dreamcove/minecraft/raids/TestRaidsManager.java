@@ -28,6 +28,15 @@ public class TestRaidsManager {
 
     private static TestPartyFactory.TestParty party1;
 
+    private void resetAllRaids() {
+        RaidManagedWorld world;
+
+        while ((world = manager.getRaidByParty(party1.getId())) != null) {
+            world.setState(RaidManagedWorld.STATE_CANCELED);
+            world.getWorld().getPlayers().clear();
+        }
+    }
+
     @BeforeAll
     public static void load() throws IOException {
         FileUtilities.deleteFile(new File(new File("target"), "test-data"));
@@ -69,9 +78,9 @@ public class TestRaidsManager {
 
         Assertions.assertTrue(manager.processCommand(player1, "raids", Arrays.asList("start", "example"), allPerms));
 
-        Assertions.assertTrue(manager.isPartyQueued(party1.getId()));
+        Assertions.assertNotNull(manager.getRaidByParty(party1.getId()));
 
-        TestEntityFactory.TestWorld world = (TestEntityFactory.TestWorld) EntityFactory.getInstance().getServer().getWorld(manager.getQueuedWorld(party1.getId()));
+        TestEntityFactory.TestWorld world = (TestEntityFactory.TestWorld) manager.getRaidByParty(party1.getId()).getWorld();
 
         try {
             Thread.sleep(6 * 1000);
@@ -89,12 +98,23 @@ public class TestRaidsManager {
         world.addPlayer(player2);
 
         // Test shutdown
-        Assertions.assertNotEquals(0, manager.getActiveRaids().size());
+        List<String> worldsWithPrefix = EntityFactory.getInstance().getServer().getWorlds().stream()
+                .map(World::getName)
+                .filter(n -> n.startsWith(manager.getRaidsConfig().getRaidWorldPrefix()))
+                .collect(Collectors.toList());
+
+        Assertions.assertNotEquals(0, worldsWithPrefix.size());
         Assertions.assertTrue(Objects.requireNonNull(EntityFactory.getInstance().getServer().getWorldContainer().listFiles()).length > 1);
 
         manager.shutdown();
 
-        Assertions.assertEquals(0, manager.getActiveRaids().size());
+        // Test shutdown
+        worldsWithPrefix = EntityFactory.getInstance().getServer().getWorlds().stream()
+                .map(World::getName)
+                .filter(n -> n.startsWith(manager.getRaidsConfig().getRaidWorldPrefix()))
+                .collect(Collectors.toList());
+
+        Assertions.assertEquals(0, worldsWithPrefix.size());
         Assertions.assertEquals(2, Objects.requireNonNull(EntityFactory.getInstance().getServer().getWorldContainer().listFiles()).length);
 
         new File(EntityFactory.getInstance().getServer().getWorldContainer(), "new-world").mkdirs();
@@ -107,22 +127,6 @@ public class TestRaidsManager {
         Assertions.assertEquals(0, manager.getHelp(new ArrayList<>()).size());
 
         Assertions.assertEquals(6, manager.getHelp(allPerms).size());
-    }
-
-    @Test
-    public void testQueueParty() {
-        UUID uuid = UUID.randomUUID();
-
-        Assertions.assertFalse(manager.isPartyQueued(uuid));
-
-        manager.queueParty(uuid, "test");
-
-        Assertions.assertTrue(manager.isPartyQueued(uuid));
-        Assertions.assertEquals("test", manager.getQueuedWorld(uuid));
-
-        manager.dequeueParty(uuid);
-
-        Assertions.assertFalse(manager.isPartyQueued(uuid));
     }
 
     @Test
@@ -190,24 +194,28 @@ public class TestRaidsManager {
 
     @Test
     public void testCommandStart() {
+        resetAllRaids();
+
         Assertions.assertTrue(manager.processCommand(player1, "raids", Arrays.asList("start", "example"), allPerms));
 
-        Assertions.assertTrue(manager.isPartyQueued(party1.getId()));
+        Assertions.assertNotNull(manager.getRaidByParty(party1.getId()));
 
-        manager.cancelRaid(party1.getId());
+        Assertions.assertTrue(manager.cancelRaid(party1.getId()));
 
-        Assertions.assertFalse(manager.isPartyQueued(party1.getId()));
+        Assertions.assertNull(manager.getRaidByParty(party1.getId()));
     }
 
     @Test
     public void testCommandCancel() {
+        resetAllRaids();
+        
         Assertions.assertTrue(manager.processCommand(player1, "raids", Arrays.asList("start", "example"), allPerms));
 
-        Assertions.assertTrue(manager.isPartyQueued(party1.getId()));
+        Assertions.assertNotNull(manager.getRaidByParty(party1.getId()));
 
         Assertions.assertTrue(manager.processCommand(player1, "raids", Collections.singletonList("cancel"), allPerms));
 
-        Assertions.assertFalse(manager.isPartyQueued(party1.getId()));
+        Assertions.assertNull(manager.getRaidByParty(party1.getId()));
     }
 
     @Test
@@ -225,9 +233,9 @@ public class TestRaidsManager {
 
         Assertions.assertTrue(manager.processCommand(player1, "raids", Arrays.asList("start", "example"), allPerms));
 
-        Assertions.assertTrue(manager.isPartyQueued(party1.getId()));
+        Assertions.assertNotNull(manager.getRaidByParty(party1.getId()));
 
-        TestEntityFactory.TestWorld world = (TestEntityFactory.TestWorld) EntityFactory.getInstance().getServer().getWorld(manager.getQueuedWorld(party1.getId()));
+        TestEntityFactory.TestWorld world = (TestEntityFactory.TestWorld) manager.getRaidByParty(party1.getId()).getWorld();
 
         try {
             Thread.sleep(6 * 1000);
@@ -273,9 +281,9 @@ public class TestRaidsManager {
 
         Assertions.assertTrue(manager.processCommand(player1, "raids", Arrays.asList("start", "example"), allPerms));
 
-        Assertions.assertTrue(manager.isPartyQueued(party1.getId()));
+        Assertions.assertNotNull(manager.getRaidByParty(party1.getId()));
 
-        TestEntityFactory.TestWorld world = (TestEntityFactory.TestWorld) EntityFactory.getInstance().getServer().getWorld(manager.getQueuedWorld(party1.getId()));
+        TestEntityFactory.TestWorld world = (TestEntityFactory.TestWorld) manager.getRaidByParty(party1.getId()).getWorld();
 
         try {
             Thread.sleep(6 * 1000);
@@ -305,14 +313,16 @@ public class TestRaidsManager {
 
     @Test
     public void testCleanCycle() {
+        resetAllRaids();
+
         WorldLocation loc1 = player1.getLocation();
         WorldLocation loc2 = player2.getLocation();
 
         Assertions.assertTrue(manager.processCommand(player1, "raids", Arrays.asList("start", "example"), allPerms));
 
-        Assertions.assertTrue(manager.isPartyQueued(party1.getId()));
+        Assertions.assertNotNull(manager.getRaidByParty(party1.getId()));
 
-        TestEntityFactory.TestWorld world = (TestEntityFactory.TestWorld) EntityFactory.getInstance().getServer().getWorld(manager.getQueuedWorld(party1.getId()));
+        TestEntityFactory.TestWorld world = (TestEntityFactory.TestWorld) manager.getRaidByParty(party1.getId()).getWorld();
 
         try {
             Thread.sleep(6 * 1000);
@@ -339,7 +349,7 @@ public class TestRaidsManager {
         Assertions.assertEquals(loc1, player1.getLocation());
         Assertions.assertEquals(loc2, player2.getLocation());
 
-        Assertions.assertTrue(manager.getActiveRaids().contains(world));
+        Assertions.assertNotNull(manager.getManagedWorld(world.getName()));
 
         world.clearPlayers();
         // Wait 20 seconds for cleanup cycle
@@ -349,7 +359,7 @@ public class TestRaidsManager {
         } catch (Throwable ignored) {
         }
 
-        Assertions.assertFalse(manager.getActiveRaids().contains(world));
+        Assertions.assertNull(manager.getManagedWorld(world.getName()));
     }
 
     @Test
