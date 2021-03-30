@@ -36,6 +36,8 @@ public class RaidsManager {
     public static final String CMD_EXIT = "exit";
     public static final String CMD_HELP = "help";
     public static final String CMD_PACKAGE = "package";
+    public static final String CMD_EDIT = "edit";
+    public static final String CMD_SAVE = "save";
     protected static final List<String> ALL_COMMANDS = Arrays.asList(
             CMD_RELOAD,
             CMD_START,
@@ -43,12 +45,14 @@ public class RaidsManager {
             CMD_END,
             CMD_EXIT,
             CMD_PACKAGE,
+            CMD_EDIT,
+            CMD_SAVE,
             CMD_HELP
     );
     private static final String CONFIG_NAME = "config.yml";
-    private final Map<UUID, String> queuedParties = Collections.synchronizedMap(new HashMap<>());
     private final Map<UUID, WorldLocation> lastLocation = Collections.synchronizedMap(new HashMap<>());
     private final File dataDirectory;
+    private final List<ManagedWorld> managedWorlds = Collections.synchronizedList(new ArrayList<>());
     private Logger logger;
     private RaidsConfig raidsConfig;
     private boolean running;
@@ -79,7 +83,7 @@ public class RaidsManager {
         int cycle = Math.max(getRaidsConfig().getCleanCycle(), 5);
         EntityFactory.getInstance().getServer().delayRunnable(() -> {
             if (running) {
-                cleanRaids();
+                cleanManagedWorlds();
                 startScrubber();
             }
         }, cycle * 20L);
@@ -116,14 +120,6 @@ public class RaidsManager {
         return raidsConfig;
     }
 
-    private Logger getLogger() {
-        if (logger == null) {
-            logger = Logger.getLogger(RaidsManager.class.getName());
-        }
-
-        return logger;
-    }
-
     private void packageFile(ZipOutputStream zos, File file, String entryName) throws IOException {
         if (file.isDirectory()) {
             zos.putNextEntry(new ZipEntry(entryName + "/"));
@@ -148,15 +144,15 @@ public class RaidsManager {
         }
     }
 
-    private void packageWorld(String worldName, String dungeonName, boolean forceUpdate) throws Exception {
+    private void packageWorld(String worldName, String dungeonName, boolean forceUpdate) throws RaidsException {
         World w = EntityFactory.getInstance().getServer().getWorld(worldName);
 
         if (w == null) {
-            throw new Exception("World " + worldName + " does not exist");
+            throw new RaidsException("World " + worldName + " does not exist");
         }
 
         if (getAvailableDungeons().contains(dungeonName) && !forceUpdate) {
-            throw new Exception("Dungeon " + dungeonName + " already exists");
+            throw new RaidsException("Dungeon " + dungeonName + " already exists");
         }
 
         File dungeonFile = new File(getDungeonDirectory(), dungeonName + ".zip");
@@ -165,30 +161,97 @@ public class RaidsManager {
             for (File f : Objects.requireNonNull(w.getWorldFolder().listFiles())) {
                 packageFile(zos, f, f.getName());
             }
+        } catch (IOException ioExc) {
+            throw new RaidsException("Error packaging dungeon", ioExc);
         }
     }
 
     public void shutdown() {
         running = false;
 
-        getActiveRaids().forEach(w -> {
-            w.getPlayers().forEach(p -> {
-                if (getLastLocation(p) != null) {
-                    p
-                            .getWorld()
-                            .getPlayers()
-                            .forEach(this::returnLastLocation);
-                }
-            });
-            try {
-                removeWorld(w);
-            } catch (IOException e) {
-                getLogger().severe("Error removing world " + w.getName());
-                getLogger().throwing("RaidsManager", "shutdown", e);
-            }
-        });
+        getServer().getWorlds().stream()
+                .filter(w -> w.getName().startsWith(raidsConfig.getRaidWorldPrefix()))
+                .forEach(w -> {
+                    w.getPlayers().forEach(this::returnLastLocation);
 
-        cleanRaids();
+                    try {
+                        removeWorld(w);
+                    } catch (IOException e) {
+                        getLogger().log(Level.SEVERE, "Unable to remove world " + w.getName(), e);
+                    }
+                });
+
+        managedWorlds.clear();
+    }
+
+    private Server getServer() {
+        return EntityFactory.getInstance().getServer();
+    }
+
+    public void returnLastLocation(Player player) {
+        if (lastLocation.get(player.getUniqueId()) != null) {
+            getLogger().info("Returning " + player.getName() + " to " + lastLocation.get(player.getUniqueId()).getWorld().getName());
+            player.teleport(lastLocation.get(player.getUniqueId()));
+            lastLocation.remove(player.getUniqueId());
+        }
+    }
+
+    public void removeWorld(World world) throws IOException {
+        if (EntityFactory.getInstance().getServer().unloadWorld(world.getName())) {
+            getLogger().info("Removing raid " + world.getName());
+            FileUtilities.deleteFile(world.getWorldFolder());
+            getLogger().info(world.getName() + " removed.");
+        }
+    }
+
+    private Logger getLogger() {
+        if (logger == null) {
+            logger = Logger.getLogger(RaidsManager.class.getName());
+        }
+
+        return logger;
+    }
+
+    private void editDungeon(Player player, String dungeonName) throws RaidsException {
+        if (player.getWorld().getName().startsWith(getRaidsConfig().getRaidWorldPrefix())) {
+            throw new RaidsException("You must not already be editing a dungeon or playing a raid");
+        }
+
+        try {
+            World w = generateDungeon(dungeonName);
+            w.setDifficulty(Difficulty.PEACEFUL);
+
+            DungeonManagedWorld managedWorld = new DungeonManagedWorld(w, dungeonName);
+            managedWorlds.add(managedWorld);
+
+            storeLastLocation(player);
+            player.teleport(w.getSpawnLocation());
+
+            player.sendMessage("You've been teleported to the " + dungeonName + " for editing");
+            player.sendMessage("Use /raids save to save your changes");
+            player.sendMessage("Use /raids exit to return from whence you came without saving changes");
+            player.sendMessage("Don't forget to set creative mode for editing");
+        } catch (IOException ioExc) {
+            throw new RaidsException("Error instantiating dungeon for editing", ioExc);
+        }
+    }
+
+    private void saveChanges(Player player) throws RaidsException {
+        DungeonManagedWorld world = managedWorlds.stream()
+                .filter(w -> w instanceof DungeonManagedWorld)
+                .map(w -> (DungeonManagedWorld) w)
+                .filter(w -> !w.isExpired())
+                .filter(w -> w.getWorld().getName().equals(player.getWorld().getName()))
+                .findFirst()
+                .orElse(null);
+
+        if (world == null) {
+            throw new RaidsException("You can only save changes while in a dungeon being edited");
+        }
+
+        packageWorld(world.getName(), world.getDungeon(), true);
+
+        returnLastLocation(player);
     }
 
     public void reload() {
@@ -231,35 +294,27 @@ public class RaidsManager {
 
         if (command.equals("raids")) {
             if (args.size() == 1) {
-                if (perms.contains(getPermission(CMD_START))) {
-                    result.add(CMD_START);
-                }
-                if (perms.contains(getPermission(CMD_CANCEL))) {
-                    result.add(CMD_CANCEL);
-                }
-                if (perms.contains(getPermission(CMD_EXIT))) {
-                    result.add(CMD_EXIT);
-                }
-                if (perms.contains(getPermission(CMD_END))) {
-                    result.add(CMD_END);
-                }
-                if (perms.contains(getPermission(CMD_RELOAD))) {
-                    result.add(CMD_RELOAD);
-                }
-                if (perms.contains(getPermission(CMD_HELP))) {
-                    result.add(CMD_HELP);
-                }
-                if (perms.contains(getPermission(CMD_PACKAGE))) {
-                    result.add(CMD_PACKAGE);
-                }
-            } else if (args.size() == 2 && args.get(0).equals(CMD_START) && perms.contains(getPermission(CMD_START))) {
-                result.addAll(getAvailableRaids());
-            } else if (args.size() == 2 && args.get(0).equals(CMD_PACKAGE) && perms.contains(getPermission(CMD_PACKAGE))) {
-                result.addAll(EntityFactory.getInstance().getServer().getWorlds().stream()
-                        .map(World::getName)
-                        .filter(n -> !n.startsWith(getRaidsConfig().getRaidWorldPrefix()))
+                result.addAll(ALL_COMMANDS.stream()
+                        .filter(c -> perms.contains(getPermission(c)))
                         .collect(Collectors.toList())
                 );
+            } else if (args.size() == 2 && perms.contains(getPermission(args.get(0)))) {
+                switch (args.get(0)) {
+                    case CMD_START:
+                        result.addAll(getAvailableRaids());
+                        break;
+                    case CMD_PACKAGE:
+                        result.addAll(EntityFactory.getInstance().getServer().getWorlds().stream()
+                                .map(World::getName)
+                                .filter(n -> !n.startsWith(getRaidsConfig().getRaidWorldPrefix()))
+                                .collect(Collectors.toList())
+                        );
+                        break;
+                    case CMD_EDIT:
+                        result.addAll(getAvailableDungeons());
+                        break;
+                    default:
+                }
             }
         }
 
@@ -270,14 +325,17 @@ public class RaidsManager {
         return getRaidsConfig().getRaids().stream().map(Raid::getName).collect(Collectors.toList());
     }
 
-    public void storeLastLocation(Player player) {
-        lastLocation.put(player.getUniqueId(), player.getLocation());
+    public List<DungeonManagedWorld> getDungeonManagedWorlds() {
+        return managedWorlds.stream()
+                .filter(w -> w instanceof DungeonManagedWorld)
+                .filter(w -> !w.isExpired())
+                .map(w -> (DungeonManagedWorld) w)
+                .collect(Collectors.toList());
     }
 
-    public void returnLastLocation(Player player) {
-        if (lastLocation.get(player.getUniqueId()) != null) {
-            player.teleport(lastLocation.get(player.getUniqueId()));
-            lastLocation.remove(player.getUniqueId());
+    public void storeLastLocation(Player player) {
+        if (!lastLocation.containsKey(player.getUniqueId())) {
+            lastLocation.put(player.getUniqueId(), player.getLocation());
         }
     }
 
@@ -285,52 +343,55 @@ public class RaidsManager {
         return lastLocation.get(player.getUniqueId());
     }
 
-    public String getQueuedWorld(UUID partyId) {
-        return queuedParties.get(partyId);
+    public RaidManagedWorld getRaidByParty(UUID partyId) {
+        return managedWorlds.stream()
+                .filter(w -> !w.isExpired())
+                .filter(w -> w instanceof RaidManagedWorld)
+                .map(w -> (RaidManagedWorld) w)
+                .filter(w -> w.getParty().getId().equals(partyId))
+                .findFirst()
+                .orElse(null);
     }
 
-    public void queueParty(UUID partyId, String worldName) {
-        queuedParties.put(partyId, worldName);
-    }
+    public void cleanManagedWorlds() {
+        // Trim our expired managed worlds out
+        Iterator<ManagedWorld> iter = managedWorlds.iterator();
 
-    public void dequeueParty(UUID partyId) {
-        queuedParties.remove(partyId);
-    }
+        while (iter.hasNext()) {
+            ManagedWorld world = iter.next();
 
-    public boolean isPartyQueued(UUID partyId) {
-        return queuedParties.containsKey(partyId);
-    }
-
-    public void cleanRaids() {
-        for (World w : getServer().getWorlds()) {
-            if (!queuedParties.containsValue(w.getName()) && w.getName().startsWith(getRaidsConfig().getRaidWorldPrefix()) && w.getPlayers().isEmpty()) {
-                getLogger().info("Removing unused dungeon - " + w.getName() + " (no players)");
-
-                try {
-                    removeWorld(w);
-                } catch (IOException ioExc) {
-                    getLogger().severe("Unable to remove " + w.getName());
-                    getLogger().throwing(RaidsManager.class.getName(), "cleanRaids", ioExc);
-                }
+            if (world.isExpired()) {
+                iter.remove();
             }
         }
-    }
 
-    public void removeWorld(World world) throws IOException {
-        if (EntityFactory.getInstance().getServer().unloadWorld(world.getName())) {
-            getLogger().info("Removing raid " + world.getName());
-            FileUtilities.deleteFile(world.getWorldFolder());
-            getLogger().info(world.getName() + " removed.");
-        }
-    }
+        List<String> activeWorldNames = managedWorlds.stream()
+                .map(ManagedWorld::getName)
+                .collect(Collectors.toList());
 
-    private Server getServer() {
-        return EntityFactory.getInstance().getServer();
+        // Worlds to remove
+        getServer().getWorlds().stream()
+                .filter(w -> w.getName().startsWith(getRaidsConfig().getRaidWorldPrefix()))
+                .filter(w -> !activeWorldNames.contains(w.getName()))
+                .forEach(w -> {
+                    getLogger().info("Removing unused world " + w.getName());
+
+                    try {
+                        removeWorld(w);
+                    } catch (IOException e) {
+                        getLogger().log(Level.WARNING, "Unable to remove " + w.getName(), e);
+                    }
+                });
     }
 
     public boolean cancelRaid(UUID partyId) {
-        if (isPartyQueued(partyId)) {
-            dequeueParty(partyId);
+        RaidManagedWorld w = getRaidByParty(partyId);
+
+        System.out.println(partyId);
+        System.out.println(w);
+        System.out.println(w.getState());
+        if (w != null && w.getState() == RaidManagedWorld.STATE_QUEUED) {
+            w.setState(RaidManagedWorld.STATE_CANCELED);
 
             PartyFactory.getInstance().getParty(partyId).broadcastMessage("Raid canceled");
 
@@ -341,9 +402,11 @@ public class RaidsManager {
     }
 
     public void startRaid(UUID partyId, World newWorld, Raid raid) {
-        queueParty(partyId, newWorld.getName());
-
         Party party = PartyFactory.getInstance().getParty(partyId);
+
+        RaidManagedWorld raidManagedWorld = new RaidManagedWorld(newWorld, raid, party);
+        raidManagedWorld.setState(RaidManagedWorld.STATE_QUEUED);
+        managedWorlds.add(raidManagedWorld);
 
         if (raid.getJoinIn() > 0) {
             party.broadcastMessage("Party is queued for a raid.");
@@ -371,6 +434,24 @@ public class RaidsManager {
 
                 if (player != null && perms.contains(getPermission(args.get(0)))) {
                     switch (args.get(0)) {
+                        case CMD_SAVE:
+                            try {
+                                saveChanges(player);
+                            } catch (RaidsException e) {
+                                receiver.sendMessage(e.getMessage());
+                                getLogger().log(Level.WARNING, e.getMessage(), e);
+                            }
+                            break;
+                        case CMD_EDIT:
+                            if (args.size() == 2) {
+                                try {
+                                    editDungeon(player, args.get(1));
+                                } catch (RaidsException e) {
+                                    receiver.sendMessage(e.getMessage());
+                                    getLogger().log(Level.WARNING, e.getMessage(), e);
+                                }
+                            }
+                            break;
                         case CMD_RELOAD:
                             reload();
                             receiver.sendMessage("Config reloaded. Found " + getAvailableRaids().size() + " raids.");
@@ -489,12 +570,6 @@ public class RaidsManager {
                 .filter(r -> r.getName().equals(name))
                 .findFirst()
                 .orElse(null);
-    }
-
-    public List<World> getActiveRaids() {
-        return getServer().getWorlds().stream()
-                .filter(w -> w.getName().startsWith(getRaidsConfig().getRaidWorldPrefix()))
-                .collect(Collectors.toList());
     }
 
     private World generateDungeon(String dungeonName) throws IOException {
@@ -652,6 +727,13 @@ public class RaidsManager {
         }
     }
 
+    public ManagedWorld getManagedWorld(String name) {
+        return managedWorlds.stream()
+                .filter(w -> w.getName().equals(name))
+                .findFirst()
+                .orElse(null);
+    }
+
     class StartRaidRunnable implements Runnable {
         UUID partyId;
 
@@ -663,22 +745,17 @@ public class RaidsManager {
 
         @Override
         public void run() {
-            String worldName = getQueuedWorld(partyId);
-            if (worldName != null) {
-                Party party = PartyFactory.getInstance().getParty(partyId);
+            RaidManagedWorld world = getRaidByParty(partyId);
+            if (world != null) {
+                getLogger().info("Sending party " + world.getParty().getName() + " to " + world.getName());
 
-                getLogger().info("Sending party " + party.getName() + " to " + getQueuedWorld(partyId));
-
-                World world = EntityFactory.getInstance().getServer().getWorld(getQueuedWorld(partyId));
-
-                party.getMembers().stream()
+                world.getParty().getMembers().stream()
                         .map(u -> getServer().getPlayer(u))
                         .forEach(p -> {
                             storeLastLocation(p);
-                            p.teleport(world.getSpawnLocation());
+                            p.teleport(world.getWorld().getSpawnLocation());
                         });
-
-                dequeueParty(partyId);
+                world.setState(RaidManagedWorld.STATE_STARTED);
             }
         }
     }

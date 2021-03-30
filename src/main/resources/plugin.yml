@@ -25,6 +25,12 @@ permissions:
   raids.reload:
     description: Allows for reload of plugin configuration
     default: op
+  raids.edit:
+    description: Allows for editing of dungeon levels
+    default: op
+  raids.save:
+    description: Allows for saving current level being edited
+    default: op
 commands:
   raids:
     description: Manage party raids
