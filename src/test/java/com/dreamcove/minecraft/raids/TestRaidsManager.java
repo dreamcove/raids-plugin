@@ -1,9 +1,6 @@
 package com.dreamcove.minecraft.raids;
 
-import com.dreamcove.minecraft.raids.api.EntityFactory;
-import com.dreamcove.minecraft.raids.api.PartyFactory;
-import com.dreamcove.minecraft.raids.api.World;
-import com.dreamcove.minecraft.raids.api.WorldLocation;
+import com.dreamcove.minecraft.raids.api.*;
 import com.dreamcove.minecraft.raids.config.Point;
 import com.dreamcove.minecraft.raids.utils.FileUtilities;
 import org.bukkit.WorldCreator;
@@ -131,8 +128,9 @@ public class TestRaidsManager {
 
     @Test
     public void testLastLocation() {
-        WorldLocation newLoc = new WorldLocation(emptyWorld, new Point(23, 44, 33));
-        TestEntityFactory.TestPlayer newPlayer = new TestEntityFactory.TestPlayer("abc");
+        Player newPlayer = getNewPlayer();
+
+        WorldLocation newLoc = new WorldLocation(newPlayer.getWorld(), new Point(5,5,5));
 
         Assertions.assertNull(manager.getLastLocation(newPlayer));
 
