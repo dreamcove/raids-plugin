@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class RaidsConfig {
@@ -68,9 +69,8 @@ public class RaidsConfig {
                 }
 
                 result.addRaid(raid);
-            } catch (Throwable t) {
-                Logger.getLogger(RaidsConfig.class.getName()).severe("Unable to load raid " + raidName);
-                Logger.getLogger(RaidsConfig.class.getName()).throwing("RaidsConfig", "parse", t);
+            } catch (Exception e) {
+                Logger.getLogger(RaidsConfig.class.getName()).log(Level.SEVERE, "Unable to load raid " + raidName, e);
             }
         }
 

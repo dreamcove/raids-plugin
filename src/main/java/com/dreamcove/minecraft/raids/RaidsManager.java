@@ -368,7 +368,7 @@ public class RaidsManager {
 
     public boolean processCommand(MessageReceiver receiver, String command, List<String> args, List<String> perms) {
         if (command.equals("raids")) {
-            if (args.size() >= 1) {
+            if (!args.isEmpty()) {
                 Player player;
 
                 if (receiver instanceof Player) {
@@ -461,7 +461,7 @@ public class RaidsManager {
                                         .filter(p -> p.getMembers().contains(playerId))
                                         .collect(Collectors.toList());
 
-                                if (foundParties.size() > 0) {
+                                if (!foundParties.isEmpty()) {
                                     if (!cancelRaid(foundParties.get(0).getId())) {
                                         receiver.sendMessage("Your party is not starting a raid");
                                     }
@@ -483,6 +483,8 @@ public class RaidsManager {
                                         .forEach(this::returnLastLocation);
                             }
                             break;
+                        default:
+                            receiver.sendMessage("Unknown command: /raids " + args.get(0));
                     }
                 }
             } else {
@@ -590,7 +592,7 @@ public class RaidsManager {
                 });
 
         raid.getOnStartup().getCommands().stream()
-                .map(c -> c.replaceAll("@w", world.getName()))
+                .map(c -> c.replace("@w", world.getName()))
                 .forEach(c -> {
                     getLogger().info("Executing start-up command: " + c);
                     getServer().dispatchCommand(c);
