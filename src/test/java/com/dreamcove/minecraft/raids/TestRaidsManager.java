@@ -53,6 +53,8 @@ public class TestRaidsManager {
         party1.addMember(player2.getUniqueId());
 
         ((TestPartyFactory) PartyFactory.getInstance()).addParty(party1);
+
+        EntityFactory.getInstance().getServer().createWorld(new WorldCreator("empty_world"));
     }
 
     @AfterAll
@@ -89,7 +91,7 @@ public class TestRaidsManager {
         manager.shutdown();
 
         Assertions.assertEquals(0, manager.getActiveRaids().size());
-        Assertions.assertEquals(1, Objects.requireNonNull(EntityFactory.getInstance().getServer().getWorldContainer().listFiles()).length);
+        Assertions.assertEquals(2, Objects.requireNonNull(EntityFactory.getInstance().getServer().getWorldContainer().listFiles()).length);
 
         new File(EntityFactory.getInstance().getServer().getWorldContainer(), "new-world").mkdirs();
         EntityFactory.getInstance().getServer().createWorld(new WorldCreator("new-world"));

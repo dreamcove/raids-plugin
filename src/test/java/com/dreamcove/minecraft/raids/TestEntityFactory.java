@@ -202,6 +202,8 @@ public class TestEntityFactory extends EntityFactory {
             World w = new TestWorld(creator.name());
             worlds.add(w);
 
+            w.getWorldFolder().mkdirs();
+
             return w;
         }
 
