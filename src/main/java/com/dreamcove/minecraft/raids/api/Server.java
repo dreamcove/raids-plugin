@@ -23,5 +23,7 @@ public interface Server {
 
     void delayRunnable(Runnable runnable, long ticks);
 
+    void dispatchCommand(String command);
+
     void scheduleRunnable(Runnable runnable, long everyTicks);
 }

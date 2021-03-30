@@ -8,6 +8,7 @@ import org.bukkit.Difficulty;
 import org.bukkit.Location;
 import org.bukkit.WorldCreator;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.EntityType;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 
@@ -79,6 +80,10 @@ public class PluginEntityFactory extends EntityFactory {
             this.world = world;
         }
 
+        protected org.bukkit.World getWorld() {
+            return world;
+        }
+
         @Override
         public String getName() {
             return world.getName();
@@ -108,6 +113,11 @@ public class PluginEntityFactory extends EntityFactory {
         @Override
         public void setDifficulty(Difficulty difficulty) {
             world.setDifficulty(difficulty);
+        }
+
+        @Override
+        public Entity spawnEntity(EntityType type, double x, double y, double z) {
+            return world.spawnEntity(new Location(world, x, y, z), type);
         }
 
         @Override
@@ -152,7 +162,7 @@ public class PluginEntityFactory extends EntityFactory {
 
         @Override
         public World createWorld(WorldCreator creator) {
-            World w = new PluginWorld(plugin.getServer().createWorld(creator));
+            PluginWorld w = new PluginWorld(plugin.getServer().createWorld(creator));
 
             return w;
         }
@@ -174,6 +184,11 @@ public class PluginEntityFactory extends EntityFactory {
         }
 
         @Override
+        public void dispatchCommand(String command) {
+            plugin.getServer().dispatchCommand(plugin.getServer().getConsoleSender(), command);
+        }
+
+        @Override
         public void scheduleRunnable(Runnable runnable, long everyTicks) {
             new BukkitRunnable() {
 
@@ -181,7 +196,7 @@ public class PluginEntityFactory extends EntityFactory {
                 public void run() {
 
                 }
-            }.runTaskTimer(plugin, 0, everyTicks);
+            }.runTaskTimer(plugin, 20, everyTicks);
 
         }
     }

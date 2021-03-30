@@ -33,6 +33,27 @@ public class RaidsConfig {
                 raid.setJoinIn(raidSection.getInt("join-in", 15));
                 raid.setSpawnLocation(Point.parse(raidSection.getString("spawn-location", "0, 0, 0")));
 
+                if (raidSection.getKeys(false).contains("on-startup")) {
+                    ConfigurationSection onStartUpSection = raidSection.getConfigurationSection("on-startup");
+
+                    raid.getOnStartup().setClearMobs(onStartUpSection.getBoolean("clear-mobs", true));
+                    onStartUpSection.getStringList("commands").forEach(raid.getOnStartup()::addCommand);
+
+                    ConfigurationSection mobs = onStartUpSection.getConfigurationSection("mobs");
+
+                    if (mobs != null) {
+                        for (String key : mobs.getKeys(false)) {
+                            ConfigurationSection mobSection = mobs.getConfigurationSection(key);
+
+                            String mobType = mobSection.getString("type");
+                            Point location = Point.parse(mobSection.getString("location"));
+                            Mob mob = new Mob(mobType, location);
+
+                            raid.getOnStartup().addMob(mob);
+                        }
+                    }
+                }
+
                 result.addRaid(raid);
             } catch (Throwable t) {
                 Logger.getLogger(RaidsConfig.class.getName()).severe("Unable to load raid " + raidName);

@@ -8,7 +8,7 @@ import org.bukkit.Location;
 import org.bukkit.WorldCreator;
 import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.YamlConfiguration;
-import org.bukkit.entity.Entity;
+import org.bukkit.entity.EntityType;
 
 import java.io.*;
 import java.net.URL;
@@ -50,6 +50,7 @@ public class RaidsManager {
     private final File dataDirectory;
     private Logger logger;
     private RaidsConfig raidsConfig;
+    private boolean running;
 
     // Constructors
     public RaidsManager(File dataDirectory, Logger logger) {
@@ -63,6 +64,7 @@ public class RaidsManager {
     }
 
     private void initialize() {
+        running = true;
         try {
             loadDefaults();
         } catch (IOException | InvalidConfigurationException exc) {
@@ -73,7 +75,13 @@ public class RaidsManager {
     }
 
     private void startScrubber() {
-        EntityFactory.getInstance().getServer().scheduleRunnable(() -> cleanRaids(), getRaidsConfig().getCleanCycle() * 20L);
+        int cycle = Math.max(getRaidsConfig().getCleanCycle(), 5);
+        EntityFactory.getInstance().getServer().delayRunnable(() -> {
+            if (running) {
+                cleanRaids();
+                startScrubber();
+            }
+        }, cycle * 20L);
     }
 
     public synchronized RaidsConfig getRaidsConfig() {
@@ -198,6 +206,8 @@ public class RaidsManager {
     }
 
     public void shutdown() {
+        running = false;
+
         getActiveRaids().forEach(w -> {
             w.getPlayers().forEach(p -> {
                 if (getLastLocation(p) != null) {
@@ -390,7 +400,7 @@ public class RaidsManager {
             party.broadcastMessage("Use /raids cancel to abort.");
         }
 
-        EntityFactory.getInstance().getServer().scheduleRunnable(new StartRaidRunnable(partyId), (long) raid.getJoinIn() * 20);
+        EntityFactory.getInstance().getServer().delayRunnable(new StartRaidRunnable(partyId), (long) raid.getJoinIn() * 20);
     }
 
     public boolean processCommand(MessageReceiver receiver, String command, List<String> args, List<String> perms) {
@@ -612,11 +622,29 @@ public class RaidsManager {
         World world = EntityFactory.getInstance().getServer().createWorld(creator);
 
         // Turn off animal/monster spawns
-        world.setDifficulty(Difficulty.PEACEFUL);
-
+        world.setDifficulty(Difficulty.NORMAL);
 
         // clear all existing mobs
-        world.getEntities().forEach(Entity::remove);
+        if (raid.getOnStartup().isClearMobs()) {
+            world.removeAllEntities();
+        }
+
+        raid.getOnStartup().getMobs().stream()
+                .forEach(m -> {
+                    getLogger().info("Spawning " + m.getType());
+                    world.spawnEntity(
+                            EntityType.valueOf(EntityType.class, m.getType()),
+                            m.getLocation().getX(), m.getLocation().getY(), m.getLocation().getZ());
+                });
+
+        world.setDifficulty(Difficulty.PEACEFUL);
+
+        raid.getOnStartup().getCommands().stream()
+                .map(c -> c.replaceAll("@w", worldName))
+                .forEach(c -> {
+                    getLogger().info("Executing start-up command: " + c);
+                    getServer().dispatchCommand(c);
+                });
 
         return world;
     }

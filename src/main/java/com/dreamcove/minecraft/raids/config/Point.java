@@ -7,11 +7,11 @@ import java.util.stream.Stream;
 
 public class Point {
 
-    private final int x;
-    private final int y;
-    private final int z;
+    private final double x;
+    private final double y;
+    private final double z;
 
-    public Point(int x, int y, int z) {
+    public Point(double x, double y, double z) {
         this.x = x;
         this.y = y;
         this.z = z;
@@ -21,26 +21,26 @@ public class Point {
         String[] parts = stringLoc.split(",");
 
         if (parts.length == 3) {
-            List<Integer> ints = Stream.of(parts)
+            List<Double> doubles = Stream.of(parts)
                     .map(String::trim)
-                    .map(Integer::parseInt)
+                    .map(Double::parseDouble)
                     .collect(Collectors.toList());
 
-            return new Point(ints.get(0), ints.get(1), ints.get(2));
+            return new Point(doubles.get(0), doubles.get(1), doubles.get(2));
         }
 
         throw new ParseException("Unknown format for point", 0);
     }
 
-    public int getX() {
+    public double getX() {
         return x;
     }
 
-    public int getY() {
+    public double getY() {
         return y;
     }
 
-    public int getZ() {
+    public double getZ() {
         return z;
     }
 }

@@ -8,6 +8,7 @@ import org.bukkit.Difficulty;
 import org.bukkit.Location;
 import org.bukkit.WorldCreator;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.EntityType;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -129,6 +130,13 @@ public class TestEntityFactory extends EntityFactory {
         }
 
         @Override
+        public Entity spawnEntity(EntityType type, double x, double y, double z) {
+            // Not implemented
+
+            return null;
+        }
+
+        @Override
         public void removeAllEntities() {
             // Not implemented
         }
@@ -215,6 +223,11 @@ public class TestEntityFactory extends EntityFactory {
                 }
             };
             t.start();
+        }
+
+        @Override
+        public void dispatchCommand(String command) {
+            Logger.getLogger(this.getClass().getName()).info("Dispatching command: " + command);
         }
 
         @Override
