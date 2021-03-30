@@ -159,22 +159,11 @@ public class RaidsManager {
             throw new Exception("Dungeon " + dungeonName + " already exists");
         }
 
-        ZipOutputStream zos = null;
+        File dungeonFile = new File(getDungeonDirectory(), dungeonName + ".zip");
 
-        try {
-            File dungeonFile = new File(getDungeonDirectory(), dungeonName + ".zip");
-            zos = new ZipOutputStream(new FileOutputStream(dungeonFile));
-
+        try (ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(dungeonFile))) {
             for (File f : Objects.requireNonNull(w.getWorldFolder().listFiles())) {
                 packageFile(zos, f, f.getName());
-            }
-        } finally {
-            if (zos != null) {
-                try {
-                    zos.close();
-                } catch (Throwable t) {
-                    getLogger().log(Level.FINE, "Error input stream", t);
-                }
             }
         }
     }
