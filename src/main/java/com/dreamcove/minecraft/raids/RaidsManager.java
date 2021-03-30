@@ -12,6 +12,7 @@ import org.bukkit.entity.EntityType;
 
 import java.io.*;
 import java.net.URL;
+import java.text.MessageFormat;
 import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -555,6 +556,7 @@ public class RaidsManager {
 
     private World setupRaidWorld(Raid raid) throws IOException {
         World world = generateDungeon(raid.getDungeonName());
+        getLogger().info(MessageFormat.format("{0}: Generated", world.getName()));
 
         // Set Spawn Location
         world.setSpawnLocation(
@@ -562,17 +564,25 @@ public class RaidsManager {
                         world,
                         raid.getSpawnLocation()
                 ));
+        getLogger().info(
+                MessageFormat.format(
+                        "{0}: spawn location set to <{1},{2},{3}>",
+                        world.getSpawnLocation().getWorld().getName(),
+                        world.getSpawnLocation().getPoint().getX(),
+                        world.getSpawnLocation().getPoint().getY(),
+                        world.getSpawnLocation().getPoint().getZ()));
 
         // clear all existing mobs
         if (raid.getOnStartup().isClearMobs()) {
             world.removeAllEntities();
+            getLogger().info(MessageFormat.format("{0}: All mobs removed.", world.getName()));
         }
 
         world.setDifficulty(Difficulty.valueOf(raid.getDifficulty().toUpperCase()));
 
         raid.getOnStartup().getMobs()
                 .forEach(m -> {
-                    getLogger().info("Spawning " + m.getType());
+                    getLogger().info(MessageFormat.format("{0}: Spawning {1}", world.getName(), m.getType()));
                     world.spawnEntity(
                             EntityType.valueOf(EntityType.class, m.getType().toUpperCase()),
                             m.getLocation().getX(), m.getLocation().getY(), m.getLocation().getZ());
@@ -581,7 +591,7 @@ public class RaidsManager {
         raid.getOnStartup().getCommands().stream()
                 .map(c -> c.replace("@w", world.getName()))
                 .forEach(c -> {
-                    getLogger().info("Executing start-up command: " + c);
+                    getLogger().info(MessageFormat.format("{0}: Executing command {1}", world.getName(), c));
                     getServer().dispatchCommand(c);
                 });
 
