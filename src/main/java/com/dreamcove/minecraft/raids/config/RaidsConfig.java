@@ -30,6 +30,7 @@ public class RaidsConfig {
                 raid.setName(raidName);
                 assert raidSection != null;
                 raid.setDungeonName(raidSection.getString("dungeon", "arena"));
+                raid.setDifficulty(raidSection.getString("difficulty", "normal"));
                 raid.setJoinIn(raidSection.getInt("join-in", 15));
                 raid.setSpawnLocation(Point.parse(raidSection.getString("spawn-location", "0, 0, 0")));
 

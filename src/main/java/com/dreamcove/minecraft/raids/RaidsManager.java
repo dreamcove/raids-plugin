@@ -621,23 +621,20 @@ public class RaidsManager {
         WorldCreator creator = new WorldCreator(worldName);
         World world = EntityFactory.getInstance().getServer().createWorld(creator);
 
-        // Turn off animal/monster spawns
-        world.setDifficulty(Difficulty.NORMAL);
-
         // clear all existing mobs
         if (raid.getOnStartup().isClearMobs()) {
             world.removeAllEntities();
         }
 
+        world.setDifficulty(Difficulty.valueOf(raid.getDifficulty().toUpperCase()));
+
         raid.getOnStartup().getMobs().stream()
                 .forEach(m -> {
                     getLogger().info("Spawning " + m.getType());
                     world.spawnEntity(
-                            EntityType.valueOf(EntityType.class, m.getType()),
+                            EntityType.valueOf(EntityType.class, m.getType().toUpperCase()),
                             m.getLocation().getX(), m.getLocation().getY(), m.getLocation().getZ());
                 });
-
-        world.setDifficulty(Difficulty.PEACEFUL);
 
         raid.getOnStartup().getCommands().stream()
                 .map(c -> c.replaceAll("@w", worldName))

@@ -5,6 +5,7 @@ import com.dreamcove.minecraft.raids.api.Player;
 import com.dreamcove.minecraft.raids.api.Server;
 import com.dreamcove.minecraft.raids.api.World;
 import org.bukkit.Difficulty;
+import org.bukkit.GameRule;
 import org.bukkit.Location;
 import org.bukkit.WorldCreator;
 import org.bukkit.entity.Entity;
@@ -163,6 +164,10 @@ public class PluginEntityFactory extends EntityFactory {
         @Override
         public World createWorld(WorldCreator creator) {
             PluginWorld w = new PluginWorld(plugin.getServer().createWorld(creator));
+
+            w.setDifficulty(Difficulty.PEACEFUL);
+            w.getWorld().setGameRule(GameRule.DO_MOB_SPAWNING, false);
+            w.getWorld().setDifficulty(Difficulty.NORMAL);
 
             return w;
         }

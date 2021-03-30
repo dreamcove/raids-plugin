@@ -3,6 +3,7 @@ raid-world-prefix: partyraids
 raids:
   example:
     dungeon: arena
+    difficulty: normal
     spawn-location: 0, 0, 0
     start-criteria:
       minimum-party-size: 1
