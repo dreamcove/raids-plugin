@@ -59,7 +59,15 @@ public class TestEntityFactory extends EntityFactory {
 
         @Override
         public void teleport(WorldLocation location) {
+            if (getWorld() != null) {
+                ((TestWorld) getWorld()).removePlayer(this);
+            }
             this.location = location;
+            setWorld(location.getWorld());
+
+            if (getWorld() != null) {
+                ((TestWorld) getWorld()).addPlayer(this);
+            }
         }
 
         @Override
@@ -89,6 +97,10 @@ public class TestEntityFactory extends EntityFactory {
 
         public void addPlayer(Player player) {
             players.add(player);
+        }
+
+        protected void removePlayer(Player player) {
+            players.remove(player);
         }
 
         public void clearPlayers() {
@@ -123,7 +135,7 @@ public class TestEntityFactory extends EntityFactory {
 
         @Override
         public List<Player> getPlayers() {
-            return players;
+            return new ArrayList<>(players);
         }
 
 

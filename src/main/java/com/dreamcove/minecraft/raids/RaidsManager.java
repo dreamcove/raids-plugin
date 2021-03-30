@@ -36,6 +36,8 @@ public class RaidsManager {
     public static final String CMD_EXIT = "exit";
     public static final String CMD_HELP = "help";
     public static final String CMD_PACKAGE = "package";
+    public static final String CMD_EDIT = "edit";
+    public static final String CMD_SAVE = "save";
     protected static final List<String> ALL_COMMANDS = Arrays.asList(
             CMD_RELOAD,
             CMD_START,
@@ -43,6 +45,8 @@ public class RaidsManager {
             CMD_END,
             CMD_EXIT,
             CMD_PACKAGE,
+            CMD_EDIT,
+            CMD_SAVE,
             CMD_HELP
     );
     private static final String CONFIG_NAME = "config.yml";
@@ -140,15 +144,15 @@ public class RaidsManager {
         }
     }
 
-    private void packageWorld(String worldName, String dungeonName, boolean forceUpdate) throws Exception {
+    private void packageWorld(String worldName, String dungeonName, boolean forceUpdate) throws RaidsException {
         World w = EntityFactory.getInstance().getServer().getWorld(worldName);
 
         if (w == null) {
-            throw new Exception("World " + worldName + " does not exist");
+            throw new RaidsException("World " + worldName + " does not exist");
         }
 
         if (getAvailableDungeons().contains(dungeonName) && !forceUpdate) {
-            throw new Exception("Dungeon " + dungeonName + " already exists");
+            throw new RaidsException("Dungeon " + dungeonName + " already exists");
         }
 
         File dungeonFile = new File(getDungeonDirectory(), dungeonName + ".zip");
@@ -157,6 +161,8 @@ public class RaidsManager {
             for (File f : Objects.requireNonNull(w.getWorldFolder().listFiles())) {
                 packageFile(zos, f, f.getName());
             }
+        } catch (IOException ioExc) {
+            throw new RaidsException("Error packaging dungeon", ioExc);
         }
     }
 
@@ -205,6 +211,48 @@ public class RaidsManager {
         return logger;
     }
 
+    private void editDungeon(Player player, String dungeonName) throws RaidsException {
+        if (player.getWorld().getName().startsWith(getRaidsConfig().getRaidWorldPrefix())) {
+            throw new RaidsException("You must not already be editing a dungeon or playing a raid");
+        }
+
+        try {
+            World w = generateDungeon(dungeonName);
+            w.setDifficulty(Difficulty.PEACEFUL);
+
+            DungeonManagedWorld managedWorld = new DungeonManagedWorld(w, dungeonName);
+            managedWorlds.add(managedWorld);
+
+            storeLastLocation(player);
+            player.teleport(w.getSpawnLocation());
+
+            player.sendMessage("You've been teleported to the " + dungeonName + " for editing");
+            player.sendMessage("Use /raids save to save your changes");
+            player.sendMessage("Use /raids exit to return from whence you came without saving changes");
+            player.sendMessage("Don't forget to set creative mode for editing");
+        } catch (IOException ioExc) {
+            throw new RaidsException("Error instantiating dungeon for editing", ioExc);
+        }
+    }
+
+    private void saveChanges(Player player) throws RaidsException {
+        DungeonManagedWorld world = managedWorlds.stream()
+                .filter(w -> w instanceof DungeonManagedWorld)
+                .map(w -> (DungeonManagedWorld) w)
+                .filter(w -> !w.isExpired())
+                .filter(w -> w.getWorld().getName().equals(player.getWorld().getName()))
+                .findFirst()
+                .orElse(null);
+
+        if (world == null) {
+            throw new RaidsException("You can only save changes while in a dungeon being edited");
+        }
+
+        packageWorld(world.getName(), world.getDungeon(), true);
+
+        returnLastLocation(player);
+    }
+
     public void reload() {
         raidsConfig = null;
     }
@@ -245,35 +293,27 @@ public class RaidsManager {
 
         if (command.equals("raids")) {
             if (args.size() == 1) {
-                if (perms.contains(getPermission(CMD_START))) {
-                    result.add(CMD_START);
-                }
-                if (perms.contains(getPermission(CMD_CANCEL))) {
-                    result.add(CMD_CANCEL);
-                }
-                if (perms.contains(getPermission(CMD_EXIT))) {
-                    result.add(CMD_EXIT);
-                }
-                if (perms.contains(getPermission(CMD_END))) {
-                    result.add(CMD_END);
-                }
-                if (perms.contains(getPermission(CMD_RELOAD))) {
-                    result.add(CMD_RELOAD);
-                }
-                if (perms.contains(getPermission(CMD_HELP))) {
-                    result.add(CMD_HELP);
-                }
-                if (perms.contains(getPermission(CMD_PACKAGE))) {
-                    result.add(CMD_PACKAGE);
-                }
-            } else if (args.size() == 2 && args.get(0).equals(CMD_START) && perms.contains(getPermission(CMD_START))) {
-                result.addAll(getAvailableRaids());
-            } else if (args.size() == 2 && args.get(0).equals(CMD_PACKAGE) && perms.contains(getPermission(CMD_PACKAGE))) {
-                result.addAll(EntityFactory.getInstance().getServer().getWorlds().stream()
-                        .map(World::getName)
-                        .filter(n -> !n.startsWith(getRaidsConfig().getRaidWorldPrefix()))
+                result.addAll(ALL_COMMANDS.stream()
+                        .filter(c -> perms.contains(getPermission(c)))
                         .collect(Collectors.toList())
                 );
+            } else if (args.size() == 2 && perms.contains(getPermission(args.get(0)))) {
+                switch (args.get(0)) {
+                    case CMD_START:
+                        result.addAll(getAvailableRaids());
+                        break;
+                    case CMD_PACKAGE:
+                        result.addAll(EntityFactory.getInstance().getServer().getWorlds().stream()
+                                .map(World::getName)
+                                .filter(n -> !n.startsWith(getRaidsConfig().getRaidWorldPrefix()))
+                                .collect(Collectors.toList())
+                        );
+                        break;
+                    case CMD_EDIT:
+                        result.addAll(getAvailableDungeons());
+                        break;
+                    default:
+                }
             }
         }
 
@@ -282,6 +322,14 @@ public class RaidsManager {
 
     public List<String> getAvailableRaids() {
         return getRaidsConfig().getRaids().stream().map(Raid::getName).collect(Collectors.toList());
+    }
+
+    public List<DungeonManagedWorld> getDungeonManagedWorlds() {
+        return managedWorlds.stream()
+                .filter(w -> w instanceof DungeonManagedWorld)
+                .filter(w -> !w.isExpired())
+                .map(w -> (DungeonManagedWorld) w)
+                .collect(Collectors.toList());
     }
 
     public void storeLastLocation(Player player) {
@@ -383,6 +431,24 @@ public class RaidsManager {
 
                 if (player != null && perms.contains(getPermission(args.get(0)))) {
                     switch (args.get(0)) {
+                        case CMD_SAVE:
+                            try {
+                                saveChanges(player);
+                            } catch (RaidsException e) {
+                                receiver.sendMessage(e.getMessage());
+                                getLogger().log(Level.WARNING, e.getMessage(), e);
+                            }
+                            break;
+                        case CMD_EDIT:
+                            if (args.size() == 2) {
+                                try {
+                                    editDungeon(player, args.get(1));
+                                } catch (RaidsException e) {
+                                    receiver.sendMessage(e.getMessage());
+                                    getLogger().log(Level.WARNING, e.getMessage(), e);
+                                }
+                            }
+                            break;
                         case CMD_RELOAD:
                             reload();
                             receiver.sendMessage("Config reloaded. Found " + getAvailableRaids().size() + " raids.");

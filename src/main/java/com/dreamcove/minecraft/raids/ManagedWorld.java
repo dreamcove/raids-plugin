@@ -21,7 +21,7 @@ public abstract class ManagedWorld {
     }
 
     public boolean isExpired() {
-        return System.currentTimeMillis() - createdAt > 60000 && world.getPlayers().isEmpty();
+        return System.currentTimeMillis() - createdAt > 10000 && world.getPlayers().isEmpty();
     }
 
     public long getCreatedAt() {

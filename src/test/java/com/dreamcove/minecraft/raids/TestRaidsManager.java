@@ -28,15 +28,6 @@ public class TestRaidsManager {
 
     private static TestPartyFactory.TestParty party1;
 
-    private void resetAllRaids() {
-        RaidManagedWorld world;
-
-        while ((world = manager.getRaidByParty(party1.getId())) != null) {
-            world.setState(RaidManagedWorld.STATE_CANCELED);
-            world.getWorld().getPlayers().clear();
-        }
-    }
-
     @BeforeAll
     public static void load() throws IOException {
         FileUtilities.deleteFile(new File(new File("target"), "test-data"));
@@ -205,10 +196,19 @@ public class TestRaidsManager {
         Assertions.assertNull(manager.getRaidByParty(party1.getId()));
     }
 
+    private void resetAllRaids() {
+        RaidManagedWorld world;
+
+        while ((world = manager.getRaidByParty(party1.getId())) != null) {
+            world.setState(RaidManagedWorld.STATE_CANCELED);
+            world.getWorld().getPlayers().clear();
+        }
+    }
+
     @Test
     public void testCommandCancel() {
         resetAllRaids();
-        
+
         Assertions.assertTrue(manager.processCommand(player1, "raids", Arrays.asList("start", "example"), allPerms));
 
         Assertions.assertNotNull(manager.getRaidByParty(party1.getId()));
@@ -448,4 +448,36 @@ public class TestRaidsManager {
 
         Assertions.assertNotEquals(origDungeonTimestamp, newDungeonTimestamp);
     }
+
+    @Test
+    public void testCommandEditAndSaveAndExit() throws InterruptedException {
+        resetAllRaids();
+
+        player1.setWorld(EntityFactory.getInstance().getServer().getWorld("empty_world"));
+
+        Assertions.assertEquals(0, manager.getDungeonManagedWorlds().size());
+
+        File file = new File(new File(manager.getDataDirectory(), "dungeons"), "arena.zip");
+        long time = file.lastModified();
+
+        Thread.sleep(2000);
+
+        Assertions.assertTrue(manager.processCommand(player1, "raids", Arrays.asList("edit", "arena"), allPerms));
+
+        Assertions.assertEquals(1, manager.getDungeonManagedWorlds().size());
+
+        DungeonManagedWorld w = manager.getDungeonManagedWorlds().get(0);
+
+        Assertions.assertTrue(manager.processCommand(player1, "raids", Arrays.asList("save"), allPerms));
+
+        Assertions.assertNotEquals(time, file.lastModified());
+
+        Assertions.assertTrue(manager.processCommand(player1, "raids", Arrays.asList("exit"), allPerms));
+
+        Thread.sleep(10000);
+
+        Assertions.assertEquals(0, manager.getDungeonManagedWorlds().size());
+    }
+
+
 }
