@@ -27,6 +27,7 @@ public class TestRaidsManager {
     private static TestEntityFactory.TestPlayer player3;
 
     private static TestPartyFactory.TestParty party1;
+    private static TestEntityFactory.TestWorld emptyWorld;
 
     @BeforeAll
     public static void load() throws IOException {
@@ -42,9 +43,11 @@ public class TestRaidsManager {
 
         manager = new RaidsManager(dataDirectory, null);
 
-        player1 = new TestEntityFactory.TestPlayer(UUID.randomUUID().toString());
-        player2 = new TestEntityFactory.TestPlayer(UUID.randomUUID().toString());
-        player3 = new TestEntityFactory.TestPlayer(UUID.randomUUID().toString());
+        emptyWorld = (TestEntityFactory.TestWorld) EntityFactory.getInstance().getServer().createWorld(new WorldCreator("empty_world"));
+
+        player1 = getNewPlayer();
+        player2 = getNewPlayer();
+        player3 = getNewPlayer();
 
         party1 = new TestPartyFactory.TestParty(UUID.randomUUID().toString());
 
@@ -58,7 +61,13 @@ public class TestRaidsManager {
 
         ((TestPartyFactory) PartyFactory.getInstance()).addParty(party1);
 
-        EntityFactory.getInstance().getServer().createWorld(new WorldCreator("empty_world"));
+    }
+
+    private static TestEntityFactory.TestPlayer getNewPlayer() {
+        TestEntityFactory.TestPlayer player = new TestEntityFactory.TestPlayer(UUID.randomUUID().toString());
+        player.teleport(emptyWorld.getSpawnLocation());
+
+        return player;
     }
 
     @AfterAll
@@ -122,7 +131,7 @@ public class TestRaidsManager {
 
     @Test
     public void testLastLocation() {
-        WorldLocation newLoc = new WorldLocation(null, new Point(23, 44, 33));
+        WorldLocation newLoc = new WorldLocation(emptyWorld, new Point(23, 44, 33));
         TestEntityFactory.TestPlayer newPlayer = new TestEntityFactory.TestPlayer("abc");
 
         Assertions.assertNull(manager.getLastLocation(newPlayer));
@@ -245,12 +254,6 @@ public class TestRaidsManager {
 
         Assertions.assertNotEquals(loc1, player1.getLocation());
         Assertions.assertNotEquals(loc2, player2.getLocation());
-
-        // Minor nudge for testing purposes
-        player1.setWorld(world);
-        player2.setWorld(world);
-        world.addPlayer(player1);
-        world.addPlayer(player2);
 
         Assertions.assertTrue(manager.processCommand(player1, "raids", Collections.singletonList("end"), allPerms));
 

@@ -190,6 +190,7 @@ public class RaidsManager {
 
     public void returnLastLocation(Player player) {
         if (lastLocation.get(player.getUniqueId()) != null) {
+            getLogger().info("Returning " + player.getName() + " to " + lastLocation.get(player.getUniqueId()).getWorld().getName());
             player.teleport(lastLocation.get(player.getUniqueId()));
             lastLocation.remove(player.getUniqueId());
         }
@@ -333,7 +334,9 @@ public class RaidsManager {
     }
 
     public void storeLastLocation(Player player) {
-        lastLocation.put(player.getUniqueId(), player.getLocation());
+        if (!lastLocation.containsKey(player.getUniqueId())) {
+            lastLocation.put(player.getUniqueId(), player.getLocation());
+        }
     }
 
     public WorldLocation getLastLocation(Player player) {
@@ -744,7 +747,6 @@ public class RaidsManager {
         public void run() {
             RaidManagedWorld world = getRaidByParty(partyId);
             if (world != null) {
-                world.setState(RaidManagedWorld.STATE_STARTED);
                 getLogger().info("Sending party " + world.getParty().getName() + " to " + world.getName());
 
                 world.getParty().getMembers().stream()
@@ -753,6 +755,7 @@ public class RaidsManager {
                             storeLastLocation(p);
                             p.teleport(world.getWorld().getSpawnLocation());
                         });
+                world.setState(RaidManagedWorld.STATE_STARTED);
             }
         }
     }
