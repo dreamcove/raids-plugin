@@ -5,6 +5,7 @@ import com.dreamcove.minecraft.raids.api.PartyFactory;
 import com.dreamcove.minecraft.raids.api.World;
 import com.dreamcove.minecraft.raids.api.WorldLocation;
 import com.dreamcove.minecraft.raids.config.Point;
+import com.dreamcove.minecraft.raids.utils.FileUtilities;
 import org.bukkit.WorldCreator;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
@@ -28,7 +29,10 @@ public class TestRaidsManager {
     private static TestPartyFactory.TestParty party1;
 
     @BeforeAll
-    public static void load() {
+    public static void load() throws IOException {
+        FileUtilities.deleteFile(new File(new File("target"), "test-data"));
+
+
         allPerms = RaidsManager.ALL_COMMANDS.stream().map(RaidsManager::getPermission).collect(Collectors.toList());
 
         EntityFactory.setInstance(new TestEntityFactory());
@@ -371,7 +375,7 @@ public class TestRaidsManager {
     }
 
     @Test
-    public void testCommandPackageFailAlreadyExists() throws IOException {
+    public void testCommandPackageFailAlreadyExists() throws IOException, InterruptedException {
         // Create a temporary world
         File worldDir = new File(EntityFactory.getInstance().getServer().getWorldContainer(), "temp");
         File childDir = new File(worldDir, "child");
@@ -393,6 +397,8 @@ public class TestRaidsManager {
 
         long origDungeonTimestamp = new File(new File(manager.getDataDirectory(), "dungeons"), "new-dungeon-1.zip").lastModified();
 
+        Thread.sleep(2000);
+
         Assertions.assertTrue(manager.processCommand(player2, "raids", Arrays.asList("package", "temp", "new-dungeon-1"), allPerms));
 
         long newDungeonTimestamp = new File(new File(manager.getDataDirectory(), "dungeons"), "new-dungeon-1.zip").lastModified();
@@ -402,7 +408,7 @@ public class TestRaidsManager {
 
 
     @Test
-    public void testCommandPackageUpdate() throws IOException {
+    public void testCommandPackageUpdate() throws IOException, InterruptedException {
         // Create a temporary world
         File worldDir = new File(EntityFactory.getInstance().getServer().getWorldContainer(), "temp");
         File childDir = new File(worldDir, "child");
@@ -423,6 +429,8 @@ public class TestRaidsManager {
         Assertions.assertTrue(manager.getAvailableDungeons().contains("new-dungeon-2"));
 
         long origDungeonTimestamp = new File(new File(manager.getDataDirectory(), "dungeons"), "new-dungeon-2.zip").lastModified();
+
+        Thread.sleep(2000);
 
         Assertions.assertTrue(manager.processCommand(player2, "raids", Arrays.asList("package", "temp", "new-dungeon-2", "-f"), allPerms));
 

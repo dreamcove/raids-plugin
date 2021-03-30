@@ -3,6 +3,7 @@ package com.dreamcove.minecraft.raids;
 import com.dreamcove.minecraft.raids.api.*;
 import com.dreamcove.minecraft.raids.config.Raid;
 import com.dreamcove.minecraft.raids.config.RaidsConfig;
+import com.dreamcove.minecraft.raids.utils.FileUtilities;
 import org.bukkit.Difficulty;
 import org.bukkit.WorldCreator;
 import org.bukkit.configuration.InvalidConfigurationException;
@@ -11,8 +12,6 @@ import org.bukkit.entity.EntityType;
 
 import java.io.*;
 import java.net.URL;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -316,22 +315,10 @@ public class RaidsManager {
         }
     }
 
-    public void deleteFile(File file) throws IOException {
-        if (file.isDirectory()) {
-            File[] files = file.listFiles();
-            assert files != null;
-            for (File value : files) {
-                deleteFile(value);
-            }
-        }
-
-        Files.delete(Paths.get(file.toURI()));
-    }
-
     public void removeWorld(World world) throws IOException {
         if (EntityFactory.getInstance().getServer().unloadWorld(world.getName())) {
             getLogger().info("Removing raid " + world.getName());
-            deleteFile(world.getWorldFolder());
+            FileUtilities.deleteFile(world.getWorldFolder());
             getLogger().info(world.getName() + " removed.");
         }
     }
