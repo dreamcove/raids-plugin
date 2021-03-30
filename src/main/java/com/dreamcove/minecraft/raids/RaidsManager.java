@@ -452,8 +452,24 @@ public class RaidsManager {
                                 if (partyId == null) {
                                     receiver.sendMessage("Player must belong to party");
                                 } else {
+                                    Party party = PartyFactory.getInstance().getParty(partyId);
                                     Raid raid = getRaid(args.get(1));
+
                                     if (raid != null) {
+                                        int minLevel = party.getMembers().stream()
+                                                .map(u -> EntityFactory.getInstance().getServer().getPlayer(u))
+                                                .map(Player::getLevel)
+                                                .reduce(Integer.MAX_VALUE, (acc, n) -> Math.min(acc, n));
+
+                                        if (party.getMembers().size() < raid.getJoinCriteria().getMinimumPartySize()) {
+                                            receiver.sendMessage("Your party must have " + raid.getJoinCriteria().getMinimumPartySize() + " members to start raid");
+                                            return true;
+                                        }
+
+                                        if (minLevel < raid.getJoinCriteria().getMinimumLevel()) {
+                                            receiver.sendMessage("All members of your party must have at least a level of " + raid.getJoinCriteria().getMinimumLevel());
+                                        }
+
                                         receiver.sendMessage("Creating raid dungeon");
 
                                         try {

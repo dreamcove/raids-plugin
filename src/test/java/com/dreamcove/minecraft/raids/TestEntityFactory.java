@@ -69,12 +69,17 @@ public class TestEntityFactory extends EntityFactory {
             return world;
         }
 
+        @Override
+        public int getLevel() {
+            return 1;
+        }
+
         public void setWorld(World world) {
             this.world = world;
         }
     }
 
-    class TestWorld implements World {
+    static class TestWorld implements World {
 
         private final String name;
         private final List<Player> players = new ArrayList<>();

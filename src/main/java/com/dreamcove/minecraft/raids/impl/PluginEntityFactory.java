@@ -86,6 +86,11 @@ public class PluginEntityFactory extends EntityFactory {
         }
 
         @Override
+        public int getLevel() {
+            return player.getLevel();
+        }
+
+        @Override
         public void sendMessage(String message) {
             player.sendMessage(message);
         }

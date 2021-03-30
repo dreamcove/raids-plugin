@@ -13,4 +13,6 @@ public interface Player extends MessageReceiver {
     void teleport(WorldLocation location);
 
     World getWorld();
+
+    int getLevel();
 }

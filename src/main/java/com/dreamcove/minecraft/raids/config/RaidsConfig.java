@@ -55,6 +55,13 @@ public class RaidsConfig {
                     }
                 }
 
+                if (raidSection.getKeys(false).contains("join-criteria")) {
+                    ConfigurationSection joinSection = raidSection.getConfigurationSection("join-criteria");
+
+                    raid.getJoinCriteria().setMinimumLevel(joinSection.getInt("minimum-rank"));
+                    raid.getJoinCriteria().setMinimumPartySize(joinSection.getInt("minimum-party-size"));
+                }
+
                 result.addRaid(raid);
             } catch (Throwable t) {
                 Logger.getLogger(RaidsConfig.class.getName()).severe("Unable to load raid " + raidName);
