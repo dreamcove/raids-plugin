@@ -1,7 +1,6 @@
 package com.dreamcove.minecraft.raids.api;
 
 import org.bukkit.Difficulty;
-import org.bukkit.Location;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 
@@ -14,7 +13,9 @@ public interface World {
 
     File getWorldFolder();
 
-    Location getSpawnLocation();
+    WorldLocation getSpawnLocation();
+
+    void setSpawnLocation(WorldLocation location);
 
     List<Player> getPlayers();
 

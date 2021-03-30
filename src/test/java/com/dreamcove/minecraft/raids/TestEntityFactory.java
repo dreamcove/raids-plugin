@@ -1,11 +1,8 @@
 package com.dreamcove.minecraft.raids;
 
-import com.dreamcove.minecraft.raids.api.EntityFactory;
-import com.dreamcove.minecraft.raids.api.Player;
-import com.dreamcove.minecraft.raids.api.Server;
-import com.dreamcove.minecraft.raids.api.World;
+import com.dreamcove.minecraft.raids.api.*;
+import com.dreamcove.minecraft.raids.config.Point;
 import org.bukkit.Difficulty;
-import org.bukkit.Location;
 import org.bukkit.WorldCreator;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
@@ -35,7 +32,7 @@ public class TestEntityFactory extends EntityFactory {
 
         private final String name;
         private final UUID uniqueId = UUID.randomUUID();
-        private Location location = new Location(null, 0, 0, 0);
+        private WorldLocation location = new WorldLocation(null, new Point(0, 0, 0));
         private World world;
 
         public TestPlayer(String name) {
@@ -58,12 +55,12 @@ public class TestEntityFactory extends EntityFactory {
         }
 
         @Override
-        public Location getLocation() {
+        public WorldLocation getLocation() {
             return location;
         }
 
         @Override
-        public void teleport(Location location) {
+        public void teleport(WorldLocation location) {
             this.location = location;
         }
 
@@ -82,6 +79,7 @@ public class TestEntityFactory extends EntityFactory {
         private final String name;
         private final List<Player> players = new ArrayList<>();
         private Difficulty difficulty;
+        private WorldLocation spawnLocation;
 
         public TestWorld(String name) {
             this.name = name;
@@ -108,8 +106,16 @@ public class TestEntityFactory extends EntityFactory {
 
 
         @Override
-        public Location getSpawnLocation() {
-            return new Location(null, 10, 10, 10);
+        public WorldLocation getSpawnLocation() {
+            if (spawnLocation == null) {
+                spawnLocation = new WorldLocation(this, new Point(10, 10, 10));
+            }
+            return spawnLocation;
+        }
+
+        @Override
+        public void setSpawnLocation(WorldLocation location) {
+            this.spawnLocation = location;
         }
 
 

@@ -4,7 +4,6 @@ import com.dreamcove.minecraft.raids.api.*;
 import com.dreamcove.minecraft.raids.config.Raid;
 import com.dreamcove.minecraft.raids.config.RaidsConfig;
 import org.bukkit.Difficulty;
-import org.bukkit.Location;
 import org.bukkit.WorldCreator;
 import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -46,7 +45,7 @@ public class RaidsManager {
             CMD_HELP
     );
     private final Map<UUID, String> queuedParties = Collections.synchronizedMap(new HashMap<>());
-    private final Map<UUID, Location> lastLocation = Collections.synchronizedMap(new HashMap<>());
+    private final Map<UUID, WorldLocation> lastLocation = Collections.synchronizedMap(new HashMap<>());
     private final File dataDirectory;
     private Logger logger;
     private RaidsConfig raidsConfig;
@@ -318,7 +317,7 @@ public class RaidsManager {
         }
     }
 
-    public Location getLastLocation(Player player) {
+    public WorldLocation getLastLocation(Player player) {
         return lastLocation.get(player.getUniqueId());
     }
 
@@ -528,8 +527,8 @@ public class RaidsManager {
                 .collect(Collectors.toList());
     }
 
-    private World setupRaidWorld(Raid raid) throws IOException {
-        String filename = raid.getDungeonName() + ".zip";
+    private World generateDungeon(String dungeonName) throws IOException {
+        String filename = dungeonName + ".zip";
 
         File dungeonFile = new File(getDungeonDirectory(), filename);
 
@@ -538,7 +537,7 @@ public class RaidsManager {
             URL url = Thread.currentThread().getContextClassLoader().getResource("dungeons/" + filename);
 
             if (url == null) {
-                throw new IOException("Dungeon " + raid.getDungeonName() + " not found");
+                throw new IOException("Dungeon " + dungeonName + " not found");
             }
 
             InputStream is = null;
@@ -619,7 +618,18 @@ public class RaidsManager {
         }
 
         WorldCreator creator = new WorldCreator(worldName);
-        World world = EntityFactory.getInstance().getServer().createWorld(creator);
+        return EntityFactory.getInstance().getServer().createWorld(creator);
+    }
+
+    private World setupRaidWorld(Raid raid) throws IOException {
+        World world = generateDungeon(raid.getDungeonName());
+
+        // Set Spawn Location
+        world.setSpawnLocation(
+                new WorldLocation(
+                        world,
+                        raid.getSpawnLocation()
+                ));
 
         // clear all existing mobs
         if (raid.getOnStartup().isClearMobs()) {
@@ -637,7 +647,7 @@ public class RaidsManager {
                 });
 
         raid.getOnStartup().getCommands().stream()
-                .map(c -> c.replaceAll("@w", worldName))
+                .map(c -> c.replaceAll("@w", world.getName()))
                 .forEach(c -> {
                     getLogger().info("Executing start-up command: " + c);
                     getServer().dispatchCommand(c);

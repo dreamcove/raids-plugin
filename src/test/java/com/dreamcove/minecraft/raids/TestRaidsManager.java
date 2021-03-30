@@ -3,7 +3,8 @@ package com.dreamcove.minecraft.raids;
 import com.dreamcove.minecraft.raids.api.EntityFactory;
 import com.dreamcove.minecraft.raids.api.PartyFactory;
 import com.dreamcove.minecraft.raids.api.World;
-import org.bukkit.Location;
+import com.dreamcove.minecraft.raids.api.WorldLocation;
+import com.dreamcove.minecraft.raids.config.Point;
 import org.bukkit.WorldCreator;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
@@ -98,12 +99,12 @@ public class TestRaidsManager {
 
     @Test
     public void testLastLocation() {
-        Location newLoc = new Location(null, 23, 44, 33);
+        WorldLocation newLoc = new WorldLocation(null, new Point(23, 44, 33));
         TestEntityFactory.TestPlayer newPlayer = new TestEntityFactory.TestPlayer("abc");
 
         Assertions.assertNull(manager.getLastLocation(newPlayer));
 
-        Location oldLoc = newPlayer.getLocation();
+        WorldLocation oldLoc = newPlayer.getLocation();
 
         manager.storeLastLocation(newPlayer);
 
@@ -177,8 +178,8 @@ public class TestRaidsManager {
 
     @Test
     public void testCommandEnd() {
-        Location loc1 = player1.getLocation();
-        Location loc2 = player2.getLocation();
+        WorldLocation loc1 = player1.getLocation();
+        WorldLocation loc2 = player2.getLocation();
 
         Assertions.assertTrue(manager.processCommand(player1, "raids", Arrays.asList("start", "example"), allPerms));
 
@@ -225,8 +226,8 @@ public class TestRaidsManager {
 
     @Test
     public void testCommandExit() {
-        Location loc1 = player1.getLocation();
-        Location loc2 = player2.getLocation();
+        WorldLocation loc1 = player1.getLocation();
+        WorldLocation loc2 = player2.getLocation();
 
         Assertions.assertTrue(manager.processCommand(player1, "raids", Arrays.asList("start", "example"), allPerms));
 
@@ -262,8 +263,8 @@ public class TestRaidsManager {
 
     @Test
     public void testCleanCycle() {
-        Location loc1 = player1.getLocation();
-        Location loc2 = player2.getLocation();
+        WorldLocation loc1 = player1.getLocation();
+        WorldLocation loc2 = player2.getLocation();
 
         Assertions.assertTrue(manager.processCommand(player1, "raids", Arrays.asList("start", "example"), allPerms));
 
