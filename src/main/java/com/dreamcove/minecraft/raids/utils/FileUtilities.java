@@ -6,6 +6,10 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 
 public final class FileUtilities {
+    private FileUtilities() {
+        // Hide the constructor
+    }
+
     public static void deleteFile(File file) throws IOException {
         if (file.exists()) {
             if (file.isDirectory()) {
