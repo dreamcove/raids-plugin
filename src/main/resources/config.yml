@@ -9,11 +9,11 @@ raids:
       minimum-rank: 1
       average-rank: 1
     join-in: 5 # number of seconds for the online to join
-    on-start:
+    on-startup:
       clear-mobs: true
       mobs:
         1:
           type: VILLAGER
           location: 1, 2, 3
       commands:
-        - day
+        - day day @w
