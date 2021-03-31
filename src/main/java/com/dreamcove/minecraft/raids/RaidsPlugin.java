@@ -61,7 +61,7 @@ public class RaidsPlugin extends JavaPlugin {
         }
 
         try {
-            manager = new RaidsManager(getDataFolder(), getLogger());
+            manager = new RaidsManager(getDataFolder());
         } catch (Exception exc) {
             getLogger().severe("Error loading config file");
             getLogger().throwing("RaidsPlugin", "onEnable", exc);

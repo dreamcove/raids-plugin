@@ -50,17 +50,16 @@ public class RaidsManager {
             CMD_HELP
     );
     private static final String CONFIG_NAME = "config.yml";
-    private final Map<UUID, WorldLocation> lastLocation = Collections.synchronizedMap(new HashMap<>());
     private final File dataDirectory;
     private final List<ManagedWorld> managedWorlds = Collections.synchronizedList(new ArrayList<>());
-    private Logger logger;
+    private final LocationManager locationManager;
     private RaidsConfig raidsConfig;
     private boolean running;
 
     // Constructors
-    public RaidsManager(File dataDirectory, Logger logger) {
+    public RaidsManager(File dataDirectory) {
         this.dataDirectory = dataDirectory;
-        this.logger = logger;
+        this.locationManager = new LocationManager(new File(dataDirectory, "locations.yml"));
         initialize();
     }
 
@@ -189,10 +188,11 @@ public class RaidsManager {
     }
 
     public void returnLastLocation(Player player) {
-        if (lastLocation.get(player.getUniqueId()) != null) {
-            getLogger().info("Returning " + player.getName() + " to " + lastLocation.get(player.getUniqueId()).getWorld().getName());
-            player.teleport(lastLocation.get(player.getUniqueId()));
-            lastLocation.remove(player.getUniqueId());
+        WorldLocation worldLoc = locationManager.remove(player.getUniqueId());
+
+        if (worldLoc != null) {
+            getLogger().info("Returning " + player.getName() + " to " + worldLoc.getWorld().getName());
+            player.teleport(worldLoc);
         }
     }
 
@@ -205,11 +205,7 @@ public class RaidsManager {
     }
 
     private Logger getLogger() {
-        if (logger == null) {
-            logger = Logger.getLogger(RaidsManager.class.getName());
-        }
-
-        return logger;
+        return Logger.getLogger(RaidsManager.class.getName());
     }
 
     private void editDungeon(Player player, String dungeonName) throws RaidsException {
@@ -334,13 +330,7 @@ public class RaidsManager {
     }
 
     public void storeLastLocation(Player player) {
-        if (!lastLocation.containsKey(player.getUniqueId())) {
-            lastLocation.put(player.getUniqueId(), player.getLocation());
-        }
-    }
-
-    public WorldLocation getLastLocation(Player player) {
-        return lastLocation.get(player.getUniqueId());
+        locationManager.store(player.getUniqueId(), player.getLocation());
     }
 
     public RaidManagedWorld getRaidByParty(UUID partyId) {
@@ -545,7 +535,7 @@ public class RaidsManager {
                             returnLastLocation(player);
                             break;
                         case CMD_END:
-                            if (getLastLocation(player) != null) {
+                            if (locationManager.get(player.getUniqueId()) != null) {
                                 player
                                         .getWorld()
                                         .getPlayers()

@@ -108,6 +108,13 @@ public class TestEntityFactory extends EntityFactory {
         }
 
         @Override
+        public boolean equals(Object obj) {
+            if (obj instanceof World) {
+                return ((World) obj).getName().equals(getName());
+            }
+
+            return false;
+        }        @Override
         public String getName() {
             return name;
         }
@@ -153,6 +160,7 @@ public class TestEntityFactory extends EntityFactory {
         public void removeAllEntities() {
             // Not implemented
         }
+
 
 
     }
