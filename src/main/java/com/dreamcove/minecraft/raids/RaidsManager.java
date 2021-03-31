@@ -171,7 +171,7 @@ public class RaidsManager {
         getServer().getWorlds().stream()
                 .filter(w -> w.getName().startsWith(raidsConfig.getRaidWorldPrefix()))
                 .forEach(w -> {
-                    w.getPlayers().forEach(this::returnLastLocation);
+                    w.getPlayers().stream().map(Player::getUniqueId).forEach(this::returnLastLocation);
 
                     try {
                         removeWorld(w);
@@ -187,10 +187,12 @@ public class RaidsManager {
         return EntityFactory.getInstance().getServer();
     }
 
-    public void returnLastLocation(Player player) {
-        WorldLocation worldLoc = locationManager.remove(player.getUniqueId());
+    public void returnLastLocation(UUID playerId) {
+        WorldLocation worldLoc = locationManager.remove(playerId);
 
         if (worldLoc != null) {
+            Player player = EntityFactory.getInstance().getServer().getPlayer(playerId);
+
             getLogger().info("Returning " + player.getName() + " to " + worldLoc.getWorld().getName());
             player.teleport(worldLoc);
         }
@@ -236,7 +238,7 @@ public class RaidsManager {
         DungeonManagedWorld world = managedWorlds.stream()
                 .filter(w -> w instanceof DungeonManagedWorld)
                 .map(w -> (DungeonManagedWorld) w)
-                .filter(w -> !w.isExpired())
+                .filter(ManagedWorld::isActive)
                 .filter(w -> w.getWorld().getName().equals(player.getWorld().getName()))
                 .findFirst()
                 .orElse(null);
@@ -247,7 +249,7 @@ public class RaidsManager {
 
         packageWorld(world.getName(), world.getDungeon(), true);
 
-        returnLastLocation(player);
+        returnLastLocation(player.getUniqueId());
     }
 
     public void reload() {
@@ -324,7 +326,7 @@ public class RaidsManager {
     public List<DungeonManagedWorld> getDungeonManagedWorlds() {
         return managedWorlds.stream()
                 .filter(w -> w instanceof DungeonManagedWorld)
-                .filter(w -> !w.isExpired())
+                .filter(ManagedWorld::isActive)
                 .map(w -> (DungeonManagedWorld) w)
                 .collect(Collectors.toList());
     }
@@ -335,7 +337,7 @@ public class RaidsManager {
 
     public RaidManagedWorld getRaidByParty(UUID partyId) {
         return managedWorlds.stream()
-                .filter(w -> !w.isExpired())
+                .filter(ManagedWorld::isActive)
                 .filter(w -> w instanceof RaidManagedWorld)
                 .map(w -> (RaidManagedWorld) w)
                 .filter(w -> w.getParty().getId().equals(partyId))
@@ -345,15 +347,8 @@ public class RaidsManager {
 
     public void cleanManagedWorlds() {
         // Trim our expired managed worlds out
-        Iterator<ManagedWorld> iter = managedWorlds.iterator();
 
-        while (iter.hasNext()) {
-            ManagedWorld world = iter.next();
-
-            if (world.isExpired()) {
-                iter.remove();
-            }
-        }
+        managedWorlds.removeIf(ManagedWorld::isExpired);
 
         List<String> activeWorldNames = managedWorlds.stream()
                 .map(ManagedWorld::getName)
@@ -377,9 +372,6 @@ public class RaidsManager {
     public boolean cancelRaid(UUID partyId) {
         RaidManagedWorld w = getRaidByParty(partyId);
 
-        System.out.println(partyId);
-        System.out.println(w);
-        System.out.println(w.getState());
         if (w != null && w.getState() == RaidManagedWorld.STATE_QUEUED) {
             w.setState(RaidManagedWorld.STATE_CANCELED);
 
@@ -532,13 +524,15 @@ public class RaidsManager {
                             }
                             break;
                         case CMD_EXIT:
-                            returnLastLocation(player);
+                            returnLastLocation(player.getUniqueId());
                             break;
                         case CMD_END:
                             if (locationManager.get(player.getUniqueId()) != null) {
                                 player
                                         .getWorld()
                                         .getPlayers()
+                                        .stream()
+                                        .map(Player::getUniqueId)
                                         .forEach(this::returnLastLocation);
                             }
                             break;

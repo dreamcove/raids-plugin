@@ -7,13 +7,17 @@ import com.dreamcove.minecraft.raids.impl.PartiesPartyFactory;
 import com.dreamcove.minecraft.raids.impl.PluginEntityFactory;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class RaidsPlugin extends JavaPlugin {
+public class RaidsPlugin extends JavaPlugin implements Listener {
 
     private RaidsManager manager;
 
@@ -66,5 +70,17 @@ public class RaidsPlugin extends JavaPlugin {
             getLogger().severe("Error loading config file");
             getLogger().throwing("RaidsPlugin", "onEnable", exc);
         }
+
+        getServer().getPluginManager().registerEvents(this, this);
+    }
+
+    @EventHandler
+    public void OnPlayerJoin(PlayerJoinEvent joinEvent) {
+        manager.returnLastLocation(joinEvent.getPlayer().getUniqueId());
+    }
+
+    @EventHandler
+    public void OnPlayerQuit(PlayerQuitEvent quitEvent) {
+        manager.returnLastLocation(quitEvent.getPlayer().getUniqueId());
     }
 }

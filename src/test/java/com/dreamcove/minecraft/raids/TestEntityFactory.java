@@ -114,7 +114,9 @@ public class TestEntityFactory extends EntityFactory {
             }
 
             return false;
-        }        @Override
+        }
+
+        @Override
         public String getName() {
             return name;
         }
@@ -160,7 +162,6 @@ public class TestEntityFactory extends EntityFactory {
         public void removeAllEntities() {
             // Not implemented
         }
-
 
 
     }

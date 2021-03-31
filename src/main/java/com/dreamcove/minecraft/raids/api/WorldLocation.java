@@ -9,6 +9,7 @@ public class WorldLocation {
 
     private final Point point;
     private final World world;
+
     public WorldLocation(World world, Point point) {
         this.world = world;
         this.point = point;
