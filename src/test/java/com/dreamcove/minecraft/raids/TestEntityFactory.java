@@ -95,6 +95,10 @@ public class TestEntityFactory extends EntityFactory {
             this.name = name;
         }
 
+        public void save() {
+            // Not Implemented
+        }
+
         public void addPlayer(Player player) {
             players.add(player);
         }

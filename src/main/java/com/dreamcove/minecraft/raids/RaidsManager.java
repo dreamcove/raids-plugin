@@ -154,6 +154,8 @@ public class RaidsManager {
             throw new RaidsException("Dungeon " + dungeonName + " already exists");
         }
 
+        w.save();
+        
         File dungeonFile = new File(getDungeonDirectory(), dungeonName + ".zip");
 
         try (ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(dungeonFile))) {
@@ -247,9 +249,9 @@ public class RaidsManager {
             throw new RaidsException("You can only save changes while in a dungeon being edited");
         }
 
-        packageWorld(world.getName(), world.getDungeon(), true);
-
         returnLastLocation(player.getUniqueId());
+
+        packageWorld(world.getName(), world.getDungeon(), true);
     }
 
     public void reload() {
