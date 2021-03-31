@@ -44,6 +44,11 @@ public class WorldLocation {
     }
 
     @Override
+    public int hashCode() {
+        return toString().hashCode();
+    }
+
+    @Override
     public String toString() {
         return getWorld().getName() + ":" + point.toString();
     }
