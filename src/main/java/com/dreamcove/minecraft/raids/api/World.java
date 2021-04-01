@@ -23,4 +23,6 @@ public interface World {
     void spawnEntity(EntityType type, double x, double y, double z);
 
     void removeAllEntities();
+
+    void save();
 }

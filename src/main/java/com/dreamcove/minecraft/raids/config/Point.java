@@ -43,4 +43,23 @@ public class Point {
     public double getZ() {
         return z;
     }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof Point) {
+            return obj.toString().equals(toString());
+        }
+
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return toString().hashCode();
+    }
+
+    @Override
+    public String toString() {
+        return String.format("%.2f,%.2f,%.2f", x, y, z);
+    }
 }

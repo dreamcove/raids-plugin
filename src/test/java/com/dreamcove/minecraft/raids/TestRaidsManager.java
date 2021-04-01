@@ -1,13 +1,13 @@
 package com.dreamcove.minecraft.raids;
 
-import com.dreamcove.minecraft.raids.api.*;
+import com.dreamcove.minecraft.raids.api.EntityFactory;
+import com.dreamcove.minecraft.raids.api.PartyFactory;
+import com.dreamcove.minecraft.raids.api.World;
+import com.dreamcove.minecraft.raids.api.WorldLocation;
 import com.dreamcove.minecraft.raids.config.Point;
 import com.dreamcove.minecraft.raids.utils.FileUtilities;
 import org.bukkit.WorldCreator;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -16,29 +16,28 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 public class TestRaidsManager {
-    private static RaidsManager manager;
-    private static List<String> allPerms;
-
-    private static TestEntityFactory.TestPlayer player1;
-    private static TestEntityFactory.TestPlayer player2;
-    private static TestEntityFactory.TestPlayer player3;
-
-    private static TestPartyFactory.TestParty party1;
-    private static TestEntityFactory.TestWorld emptyWorld;
+    private final File dataDirectory = new File(new File(new File("target"), "test-data"), "plugin");
+    private RaidsManager manager;
+    private List<String> allPerms;
+    private TestEntityFactory.TestPlayer player1;
+    private TestEntityFactory.TestPlayer player2;
+    private TestEntityFactory.TestPlayer player3;
+    private TestPartyFactory.TestParty party1;
+    private TestEntityFactory.TestWorld emptyWorld;
 
     @BeforeAll
-    public static void load() throws IOException {
-        FileUtilities.deleteFile(new File(new File("target"), "test-data"));
+    public static void load() {
+        EntityFactory.setInstance(new TestEntityFactory());
+        PartyFactory.setInstance(new TestPartyFactory());
+    }
 
+    @BeforeEach
+    public void testSetup() throws IOException {
+        FileUtilities.deleteFile(new File(new File("target"), "test-data"));
 
         allPerms = RaidsManager.ALL_COMMANDS.stream().map(RaidsManager::getPermission).collect(Collectors.toList());
 
-        EntityFactory.setInstance(new TestEntityFactory());
-        PartyFactory.setInstance(new TestPartyFactory());
-
-        File dataDirectory = new File(new File(new File("target"), "test-data"), "plugin");
-
-        manager = new RaidsManager(dataDirectory, null);
+        manager = new RaidsManager(dataDirectory);
 
         emptyWorld = (TestEntityFactory.TestWorld) EntityFactory.getInstance().getServer().createWorld(new WorldCreator("empty_world"));
 
@@ -60,63 +59,16 @@ public class TestRaidsManager {
 
     }
 
-    private static TestEntityFactory.TestPlayer getNewPlayer() {
+    private TestEntityFactory.TestPlayer getNewPlayer() {
         TestEntityFactory.TestPlayer player = new TestEntityFactory.TestPlayer(UUID.randomUUID().toString());
         player.teleport(emptyWorld.getSpawnLocation());
 
         return player;
     }
 
-    @AfterAll
-    public static void unload() {
-        // Start a raid to validate we're shutting down properly
-        WorldLocation loc1 = player1.getLocation();
-        WorldLocation loc2 = player2.getLocation();
-
-        Assertions.assertTrue(manager.processCommand(player1, "raids", Arrays.asList("start", "example"), allPerms));
-
-        Assertions.assertNotNull(manager.getRaidByParty(party1.getId()));
-
-        TestEntityFactory.TestWorld world = (TestEntityFactory.TestWorld) manager.getRaidByParty(party1.getId()).getWorld();
-
-        try {
-            Thread.sleep(6 * 1000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-
-        Assertions.assertNotEquals(loc1, player1.getLocation());
-        Assertions.assertNotEquals(loc2, player2.getLocation());
-
-        // Minor nudge for testing purposes
-        player1.setWorld(world);
-        player2.setWorld(world);
-        world.addPlayer(player1);
-        world.addPlayer(player2);
-
-        // Test shutdown
-        List<String> worldsWithPrefix = EntityFactory.getInstance().getServer().getWorlds().stream()
-                .map(World::getName)
-                .filter(n -> n.startsWith(manager.getRaidsConfig().getRaidWorldPrefix()))
-                .collect(Collectors.toList());
-
-        Assertions.assertNotEquals(0, worldsWithPrefix.size());
-        Assertions.assertTrue(Objects.requireNonNull(EntityFactory.getInstance().getServer().getWorldContainer().listFiles()).length > 1);
-
+    @AfterEach
+    public void testShutdown() {
         manager.shutdown();
-
-        // Test shutdown
-        worldsWithPrefix = EntityFactory.getInstance().getServer().getWorlds().stream()
-                .map(World::getName)
-                .filter(n -> n.startsWith(manager.getRaidsConfig().getRaidWorldPrefix()))
-                .collect(Collectors.toList());
-
-        Assertions.assertEquals(0, worldsWithPrefix.size());
-        Assertions.assertEquals(2, Objects.requireNonNull(EntityFactory.getInstance().getServer().getWorldContainer().listFiles()).length);
-
-        new File(EntityFactory.getInstance().getServer().getWorldContainer(), "new-world").mkdirs();
-        EntityFactory.getInstance().getServer().createWorld(new WorldCreator("new-world"));
-
     }
 
     @Test
@@ -128,26 +80,29 @@ public class TestRaidsManager {
 
     @Test
     public void testLastLocation() {
-        Player newPlayer = getNewPlayer();
 
-        WorldLocation newLoc = new WorldLocation(newPlayer.getWorld(), new Point(5,5,5));
+        LocationManager locManager = new LocationManager(new File(dataDirectory, "test-locations.yml"));
 
-        Assertions.assertNull(manager.getLastLocation(newPlayer));
+        UUID uuid = UUID.randomUUID();
 
-        WorldLocation oldLoc = newPlayer.getLocation();
+        WorldLocation newLoc = new WorldLocation(emptyWorld, new Point(5, 5, 5));
 
-        manager.storeLastLocation(newPlayer);
+        Assertions.assertNull(locManager.get(uuid));
 
-        Assertions.assertEquals(oldLoc, manager.getLastLocation(newPlayer));
+        locManager.store(uuid, newLoc);
 
-        newPlayer.teleport(newLoc);
+        // Ensure we're keeping the map
+        Assertions.assertEquals(newLoc, locManager.get(uuid));
 
-        Assertions.assertEquals(newLoc, newPlayer.getLocation());
+        // New instance to restore locations
+        locManager = new LocationManager(new File(dataDirectory, "test-locations.yml"));
 
-        manager.returnLastLocation(newPlayer);
+        Assertions.assertEquals(newLoc, locManager.get(uuid));
 
-        Assertions.assertNull(manager.getLastLocation(newPlayer));
-        Assertions.assertEquals(oldLoc, newPlayer.getLocation());
+        // Remove should return value and remove it
+        Assertions.assertEquals(newLoc, locManager.remove(uuid));
+
+        Assertions.assertNull(locManager.get(uuid));
     }
 
     @Test
@@ -241,8 +196,6 @@ public class TestRaidsManager {
         Assertions.assertTrue(manager.processCommand(player1, "raids", Arrays.asList("start", "example"), allPerms));
 
         Assertions.assertNotNull(manager.getRaidByParty(party1.getId()));
-
-        TestEntityFactory.TestWorld world = (TestEntityFactory.TestWorld) manager.getRaidByParty(party1.getId()).getWorld();
 
         try {
             Thread.sleep(6 * 1000);
@@ -467,13 +420,11 @@ public class TestRaidsManager {
 
         Assertions.assertEquals(1, manager.getDungeonManagedWorlds().size());
 
-        DungeonManagedWorld w = manager.getDungeonManagedWorlds().get(0);
-
-        Assertions.assertTrue(manager.processCommand(player1, "raids", Arrays.asList("save"), allPerms));
+        Assertions.assertTrue(manager.processCommand(player1, "raids", Collections.singletonList("save"), allPerms));
 
         Assertions.assertNotEquals(time, file.lastModified());
 
-        Assertions.assertTrue(manager.processCommand(player1, "raids", Arrays.asList("exit"), allPerms));
+        Assertions.assertTrue(manager.processCommand(player1, "raids", Collections.singletonList("exit"), allPerms));
 
         Thread.sleep(10000);
 

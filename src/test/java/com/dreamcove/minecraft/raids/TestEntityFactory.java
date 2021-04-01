@@ -95,6 +95,10 @@ public class TestEntityFactory extends EntityFactory {
             this.name = name;
         }
 
+        public void save() {
+            // Not Implemented
+        }
+
         public void addPlayer(Player player) {
             players.add(player);
         }
@@ -105,6 +109,15 @@ public class TestEntityFactory extends EntityFactory {
 
         public void clearPlayers() {
             players.clear();
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj instanceof World) {
+                return ((World) obj).getName().equals(getName());
+            }
+
+            return false;
         }
 
         @Override

@@ -104,6 +104,11 @@ public class PluginEntityFactory extends EntityFactory {
         }
 
         @Override
+        public void save() {
+            world.save();
+        }
+
+        @Override
         public String getName() {
             return world.getName();
         }
@@ -162,7 +167,6 @@ public class PluginEntityFactory extends EntityFactory {
         @Override
         public World getWorld(String name) {
             org.bukkit.World w = plugin.getServer().getWorld(name);
-
             return w == null ? null : new PluginWorld(w);
         }
 

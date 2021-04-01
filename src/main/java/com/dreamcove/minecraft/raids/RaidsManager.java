@@ -50,17 +50,16 @@ public class RaidsManager {
             CMD_HELP
     );
     private static final String CONFIG_NAME = "config.yml";
-    private final Map<UUID, WorldLocation> lastLocation = Collections.synchronizedMap(new HashMap<>());
     private final File dataDirectory;
     private final List<ManagedWorld> managedWorlds = Collections.synchronizedList(new ArrayList<>());
-    private Logger logger;
+    private final LocationManager locationManager;
     private RaidsConfig raidsConfig;
     private boolean running;
 
     // Constructors
-    public RaidsManager(File dataDirectory, Logger logger) {
+    public RaidsManager(File dataDirectory) {
         this.dataDirectory = dataDirectory;
-        this.logger = logger;
+        this.locationManager = new LocationManager(new File(dataDirectory, "locations.yml"));
         initialize();
     }
 
@@ -155,6 +154,8 @@ public class RaidsManager {
             throw new RaidsException("Dungeon " + dungeonName + " already exists");
         }
 
+        w.save();
+
         File dungeonFile = new File(getDungeonDirectory(), dungeonName + ".zip");
 
         try (ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(dungeonFile))) {
@@ -172,7 +173,7 @@ public class RaidsManager {
         getServer().getWorlds().stream()
                 .filter(w -> w.getName().startsWith(raidsConfig.getRaidWorldPrefix()))
                 .forEach(w -> {
-                    w.getPlayers().forEach(this::returnLastLocation);
+                    w.getPlayers().stream().map(Player::getUniqueId).forEach(this::returnLastLocation);
 
                     try {
                         removeWorld(w);
@@ -188,11 +189,14 @@ public class RaidsManager {
         return EntityFactory.getInstance().getServer();
     }
 
-    public void returnLastLocation(Player player) {
-        if (lastLocation.get(player.getUniqueId()) != null) {
-            getLogger().info("Returning " + player.getName() + " to " + lastLocation.get(player.getUniqueId()).getWorld().getName());
-            player.teleport(lastLocation.get(player.getUniqueId()));
-            lastLocation.remove(player.getUniqueId());
+    public void returnLastLocation(UUID playerId) {
+        WorldLocation worldLoc = locationManager.remove(playerId);
+
+        if (worldLoc != null) {
+            Player player = EntityFactory.getInstance().getServer().getPlayer(playerId);
+
+            getLogger().info("Returning " + player.getName() + " to " + worldLoc.getWorld().getName());
+            player.teleport(worldLoc);
         }
     }
 
@@ -205,11 +209,7 @@ public class RaidsManager {
     }
 
     private Logger getLogger() {
-        if (logger == null) {
-            logger = Logger.getLogger(RaidsManager.class.getName());
-        }
-
-        return logger;
+        return Logger.getLogger(RaidsManager.class.getName());
     }
 
     private void editDungeon(Player player, String dungeonName) throws RaidsException {
@@ -240,7 +240,7 @@ public class RaidsManager {
         DungeonManagedWorld world = managedWorlds.stream()
                 .filter(w -> w instanceof DungeonManagedWorld)
                 .map(w -> (DungeonManagedWorld) w)
-                .filter(w -> !w.isExpired())
+                .filter(ManagedWorld::isActive)
                 .filter(w -> w.getWorld().getName().equals(player.getWorld().getName()))
                 .findFirst()
                 .orElse(null);
@@ -250,8 +250,6 @@ public class RaidsManager {
         }
 
         packageWorld(world.getName(), world.getDungeon(), true);
-
-        returnLastLocation(player);
     }
 
     public void reload() {
@@ -328,24 +326,18 @@ public class RaidsManager {
     public List<DungeonManagedWorld> getDungeonManagedWorlds() {
         return managedWorlds.stream()
                 .filter(w -> w instanceof DungeonManagedWorld)
-                .filter(w -> !w.isExpired())
+                .filter(ManagedWorld::isActive)
                 .map(w -> (DungeonManagedWorld) w)
                 .collect(Collectors.toList());
     }
 
     public void storeLastLocation(Player player) {
-        if (!lastLocation.containsKey(player.getUniqueId())) {
-            lastLocation.put(player.getUniqueId(), player.getLocation());
-        }
-    }
-
-    public WorldLocation getLastLocation(Player player) {
-        return lastLocation.get(player.getUniqueId());
+        locationManager.store(player.getUniqueId(), player.getLocation());
     }
 
     public RaidManagedWorld getRaidByParty(UUID partyId) {
         return managedWorlds.stream()
-                .filter(w -> !w.isExpired())
+                .filter(ManagedWorld::isActive)
                 .filter(w -> w instanceof RaidManagedWorld)
                 .map(w -> (RaidManagedWorld) w)
                 .filter(w -> w.getParty().getId().equals(partyId))
@@ -355,15 +347,8 @@ public class RaidsManager {
 
     public void cleanManagedWorlds() {
         // Trim our expired managed worlds out
-        Iterator<ManagedWorld> iter = managedWorlds.iterator();
 
-        while (iter.hasNext()) {
-            ManagedWorld world = iter.next();
-
-            if (world.isExpired()) {
-                iter.remove();
-            }
-        }
+        managedWorlds.removeIf(ManagedWorld::isExpired);
 
         List<String> activeWorldNames = managedWorlds.stream()
                 .map(ManagedWorld::getName)
@@ -387,9 +372,6 @@ public class RaidsManager {
     public boolean cancelRaid(UUID partyId) {
         RaidManagedWorld w = getRaidByParty(partyId);
 
-        System.out.println(partyId);
-        System.out.println(w);
-        System.out.println(w.getState());
         if (w != null && w.getState() == RaidManagedWorld.STATE_QUEUED) {
             w.setState(RaidManagedWorld.STATE_CANCELED);
 
@@ -542,13 +524,15 @@ public class RaidsManager {
                             }
                             break;
                         case CMD_EXIT:
-                            returnLastLocation(player);
+                            returnLastLocation(player.getUniqueId());
                             break;
                         case CMD_END:
-                            if (getLastLocation(player) != null) {
+                            if (locationManager.get(player.getUniqueId()) != null) {
                                 player
                                         .getWorld()
                                         .getPlayers()
+                                        .stream()
+                                        .map(Player::getUniqueId)
                                         .forEach(this::returnLastLocation);
                             }
                             break;
