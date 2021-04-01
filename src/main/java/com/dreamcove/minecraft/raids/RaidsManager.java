@@ -155,7 +155,7 @@ public class RaidsManager {
         }
 
         w.save();
-        
+
         File dungeonFile = new File(getDungeonDirectory(), dungeonName + ".zip");
 
         try (ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(dungeonFile))) {
@@ -248,8 +248,6 @@ public class RaidsManager {
         if (world == null) {
             throw new RaidsException("You can only save changes while in a dungeon being edited");
         }
-
-        returnLastLocation(player.getUniqueId());
 
         packageWorld(world.getName(), world.getDungeon(), true);
     }
